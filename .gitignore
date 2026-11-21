@@ -1,0 +1,12 @@
+/data/
+/etc/depman.conf
+/etc/icon.*
+/etc/banner.*
+*.db
+*.exe
+/web/node_modules/
+/web/dist/
+/cmd/server/webdist/*
+!/cmd/server/webdist/.gitkeep
+.DS_Store
+*.log
