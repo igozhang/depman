@@ -41,17 +41,12 @@ func main() {
 	runner := &deploy.Runner{Store: st}
 
 	var webFS fs.FS
-	webNote := "none"
 	sub, err := fs.Sub(webEmbed, "webdist")
 	if err == nil {
 		if f, err := sub.Open("index.html"); err == nil {
 			_ = f.Close()
 			webFS = sub
-			webNote = "embedded"
 		}
-	}
-	if webFS == nil {
-		log.Printf("warning: frontend not embedded (cmd/server/webdist missing index.html); / will 404 — use Docker build or copy web/dist")
 	}
 
 	r := api.NewRouter(api.Deps{
@@ -68,7 +63,7 @@ func main() {
 	if ui.IconPath != "" {
 		iconNote = ui.IconPath
 	}
-	log.Printf("depman %s listening on %s (db=%s etc=%s icon=%s web=%s)", version, cfg.Addr, cfg.DBPath, cfg.EtcDir, iconNote, webNote)
+	log.Printf("depman %s listening on %s (db=%s etc=%s icon=%s)", version, cfg.Addr, cfg.DBPath, cfg.EtcDir, iconNote)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

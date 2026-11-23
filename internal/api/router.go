@@ -136,21 +136,13 @@ func NewRouter(d Deps) *gin.Engine {
 				respond.NotFound(c, "not found")
 				return
 			}
-			rel := strings.TrimPrefix(path, "/")
-			if rel != "" {
-				if f, err := d.WebFS.Open(rel); err == nil {
-					_ = f.Close()
-					fileServer.ServeHTTP(c.Writer, c.Request)
-					return
-				}
-			}
-			// SPA：显式回落 index.html（避免 FileServer 对 / 在 embed FS 上 404）
-			raw, err := fs.ReadFile(d.WebFS, "index.html")
-			if err != nil {
-				respond.NotFound(c, "frontend not embedded")
+			if f, err := d.WebFS.Open(strings.TrimPrefix(path, "/")); err == nil {
+				_ = f.Close()
+				fileServer.ServeHTTP(c.Writer, c.Request)
 				return
 			}
-			c.Data(http.StatusOK, "text/html; charset=utf-8", raw)
+			c.Request.URL.Path = "/"
+			fileServer.ServeHTTP(c.Writer, c.Request)
 		})
 	}
 

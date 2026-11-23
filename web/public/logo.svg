@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-<rect width="64" height="64" rx="12" fill="#1a1a1a"/>
-<rect x="6" y="10" width="16" height="44" rx="3" fill="#e52521"/>
-<rect x="24" y="10" width="16" height="44" rx="3" fill="#f5c518"/>
-<rect x="42" y="10" width="16" height="44" rx="3" fill="#049cd8"/>
-<text x="32" y="38" text-anchor="middle" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="0.6" fill="#ffffff">CICD</text>
+<rect width="64" height="64" rx="12" fill="#111"/>
+<rect x="5" y="8" width="17" height="48" rx="3" fill="#e52521"/>
+<rect x="23.5" y="8" width="17" height="48" rx="3" fill="#f5c518"/>
+<rect x="42" y="8" width="17" height="48" rx="3" fill="#049cd8"/>
+<rect x="8" y="24" width="48" height="18" rx="4" fill="#111" fill-opacity=".72"/>
+<text x="32" y="37.5" text-anchor="middle" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="800" letter-spacing="1.2" fill="#fff">CICD</text>
 </svg>

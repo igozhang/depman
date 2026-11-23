@@ -11,13 +11,14 @@ RUN npm run build
 
 FROM golang:1.22-alpine AS build
 WORKDIR /src
+# webdist 仅写入镜像构建层，不改宿主机 git 树
+COPY --from=web /web/dist/. ./cmd/server/webdist/
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY . .
 COPY --from=web /web/dist/. ./cmd/server/webdist/
-RUN test -f cmd/server/webdist/index.html
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOMAXPROCS=1 \
