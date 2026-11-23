@@ -25,9 +25,12 @@ metadata:
     app: depman
 spec:
   replicas: 1
-  # 单副本 + local-path RWO：用 Recreate，避免 RollingUpdate 新旧抢卷卡死
+  # 先起新且 Ready 后再下旧，避免空窗；RWO 靠同节点亲和（见 affinity）
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app: depman
@@ -38,6 +41,16 @@ spec:
     spec:
       # conf / icon：DEPMAN_ETC_DIR=/data/etc（与 DB 同 PVC，重启不丢）
       # 镜像拉取：不在此写 imagePullSecrets；由 ns default ServiceAccount 挂密钥（见 deploy.md）
+      # local-path RWO：滚动时优先与旧 Pod 同节点，才能同时挂卷
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: depman
+                topologyKey: kubernetes.io/hostname
       terminationGracePeriodSeconds: 30
       containers:
         - name: depman
