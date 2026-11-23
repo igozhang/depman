@@ -76,8 +76,22 @@ internal/sshx/        SSH 执行
 internal/deploy/      发布任务
 web/                  Vue3
 etc/                  depman.conf、可选 icon
+deploy/               Dockerfile 与 K8s 清单
+docs/deploy.md        部署说明
 ```
+
+## 容器 / 生产部署
+
+- 镜像仓库：`krccr.ccs.tencentyun.com/igokorea/depman`
+- 构建机：`VM-4-11-ubuntu`（nerdctl，2C2G 限并行 + cache）
+- 运行：`zabbix68`，Namespace / Deployment 均为 `depman`，域名 `depman.igozhang.cn`
+
+步骤见 [docs/deploy.md](docs/deploy.md)（单条 build/push 命令）。
 
 ## Logo
 
 内置「CICD」SVG（&lt;2K）作 favicon / 页眉图标；可将自有 `icon.svg` / `icon.png` 放入 `etc` 覆盖。
+
+## 文档
+
+- [部署](docs/deploy.md)

@@ -1,7 +1,7 @@
 /data/
-/etc/depman.conf
 /etc/icon.*
 /etc/banner.*
+# etc/depman.conf 入库（镜像 COPY 需要）；本地改配勿提交敏感覆盖时可自行 stash
 *.db
 *.exe
 /web/node_modules/

@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: depman
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: depman-data
+  namespace: depman
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: depman
+  namespace: depman
+  labels:
+    app: depman
+spec:
+  replicas: 1
+  # 先起新再下旧，避免 Recreate 空窗；RWO 需新旧 Pod 同节点（见 affinity）
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: depman
+  template:
+    metadata:
+      labels:
+        app: depman
+    spec:
+      # conf / icon：DEPMAN_ETC_DIR=/data/etc（与 DB 同 PVC，重启不丢）
+      # RWO PVC 允许多个 Pod 在同一节点挂载；滚动时优先调度到旧 Pod 所在节点
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: depman
+                topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 45
+      # 若节点未配置腾讯云 CCR 拉取凭证，取消注释并创建同名 Secret：
+      # imagePullSecrets:
+      #   - name: tcr-igokorea
+      containers:
+        - name: depman
+          image: krccr.ccs.tencentyun.com/igokorea/depman:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: DEPMAN_ADDR
+              value: ":8080"
+            - name: DEPMAN_DATA_DIR
+              value: /data
+            - name: DEPMAN_DB_PATH
+              value: /data/depman.db
+            # 与 DB 同 PVC：/data/etc/depman.conf 重启不丢
+            - name: DEPMAN_ETC_DIR
+              value: /data/etc
+            - name: TZ
+              value: Asia/Shanghai
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          lifecycle:
+            preStop:
+              exec:
+                # 给 Ingress/连接一点排空时间，再结束旧 Pod
+                command: ["/bin/sh", "-c", "sleep 8"]
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: depman-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: depman
+  namespace: depman
+spec:
+  selector:
+    app: depman
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: depman
+  namespace: depman
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: depman.igozhang.cn
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: depman
+                port:
+                  name: http
