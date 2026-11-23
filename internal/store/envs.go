@@ -21,21 +21,30 @@ func (s *Store) ListEnvironments() ([]model.Environment, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var out []model.Environment
 	for rows.Next() {
 		var e model.Environment
 		var cAt, uAt int64
 		if err := rows.Scan(&e.ID, &e.Name, &e.Kind, &e.Description, &cAt, &uAt); err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
 		e.CreatedAt = time.Unix(cAt, 0)
 		e.UpdatedAt = time.Unix(uAt, 0)
-		tags, _ := s.tagsOfEnv(e.ID)
-		e.Tags = tags
+		e.Tags = []string{}
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	err = rows.Err()
+	_ = rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	// MaxOpenConns(1)：必须先关闭 rows 再查标签，否则嵌套 Query 会死锁
+	for i := range out {
+		tags, _ := s.tagsOfEnv(out[i].ID)
+		out[i].Tags = tags
+	}
+	return out, nil
 }
 
 func (s *Store) GetEnvironment(id string) (model.Environment, error) {
