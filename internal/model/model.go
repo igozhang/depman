@@ -30,16 +30,24 @@ type ProjectInput struct {
 type Environment struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
-	Kind        string    `json:"kind"` // dev | test | staging | prod | other
+	Kind        string    `json:"kind"` // dev | uat | pro
 	Description string    `json:"description"`
+	Tags        []string  `json:"tags"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type EnvironmentInput struct {
-	Name        string `json:"name"`
-	Kind        string `json:"kind"`
-	Description string `json:"description"`
+	Name        string   `json:"name"`
+	Kind        string   `json:"kind"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+}
+
+type Tag struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Credential types: git | harbor | ssh | api

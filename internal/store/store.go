@@ -61,10 +61,22 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS environments (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  kind TEXT NOT NULL DEFAULT 'other',
+  kind TEXT NOT NULL DEFAULT 'dev',
   description TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS environment_tags (
+  env_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  PRIMARY KEY(env_id, tag_id),
+  FOREIGN KEY(env_id) REFERENCES environments(id) ON DELETE CASCADE,
+  FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS credentials (
   id TEXT PRIMARY KEY,

@@ -97,6 +97,7 @@ func NewRouter(d Deps) *gin.Engine {
 		readG.GET("/projects", rh.ListCapsules)
 		readG.GET("/projects/:id", rh.GetProject)
 		readG.GET("/environments", rh.ListEnvironments)
+		readG.GET("/tags", rh.ListTags)
 		readG.GET("/credentials", rh.ListCredentials)
 		readG.GET("/jobs", rh.ListJobs)
 		readG.GET("/jobs/:id", rh.GetJob)

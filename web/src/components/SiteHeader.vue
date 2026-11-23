@@ -6,7 +6,7 @@ import { canWrite, login, logout, useOpsAuth } from '../stores/opsAuth'
 import { authApi } from '../api'
 import { copyText } from '../utils/clipboard'
 
-const SITE_TAGLINE = 'practice makes perfect'
+const SITE_TAGLINE = '简单发布'
 const { ui, iconSrc, bannerStyle } = useSiteUI()
 const { state } = useOpsAuth()
 

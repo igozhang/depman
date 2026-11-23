@@ -15,6 +15,9 @@ export const readApi = {
   environments() {
     return http.get('/read/environments')
   },
+  tags() {
+    return http.get('/read/tags')
+  },
   credentials(envId, reveal = false) {
     return http.get('/read/credentials', { params: { envId: envId || undefined, reveal: reveal ? 1 : undefined } })
   },

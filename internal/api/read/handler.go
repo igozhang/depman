@@ -91,6 +91,15 @@ func (h *Handler) ListEnvironments(c *gin.Context) {
 	respond.OK(c, gin.H{"items": items})
 }
 
+func (h *Handler) ListTags(c *gin.Context) {
+	items, err := h.Store.ListTags()
+	if err != nil {
+		respond.Internal(c, err.Error())
+		return
+	}
+	respond.OK(c, gin.H{"items": items})
+}
+
 func (h *Handler) ListCredentials(c *gin.Context) {
 	envID := strings.TrimSpace(c.Query("envId"))
 	reveal := c.Query("reveal") == "1"

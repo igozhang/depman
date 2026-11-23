@@ -13,6 +13,7 @@
   --ok: #2f6b45;
   --warn: #9a6700;
   --shell-max: 64rem;
+  --footer-h: 44px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   --mono: "JetBrains Mono", "Consolas", monospace;
   --ctrl-pad-y: 7px;
@@ -56,6 +57,21 @@ a:hover { text-decoration: underline; }
   flex: 1;
   padding-top: 1.25rem;
   padding-bottom: 2.5rem;
+}
+
+.footer {
+  min-height: var(--footer-h);
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+}
+.footer-inner {
+  text-align: center;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
 }
 
 .site-head {
@@ -374,6 +390,53 @@ input, select, textarea {
 .status-pill.ok { color: var(--ok); border-color: #8fbf9a; }
 .status-pill.failed { color: var(--danger); border-color: #e0b4b0; }
 .status-pill.running { color: var(--warn); }
+
+.tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  vertical-align: middle;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  line-height: var(--ctrl-line, 1.25);
+}
+.tag-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-size: 14px;
+}
+.tag-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tag-input-row input {
+  flex: 1;
+  min-width: 8rem;
+}
+.tag-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.tag-suggest button {
+  font-size: 12px;
+}
 
 table.data {
   width: 100%;

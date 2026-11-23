@@ -3,14 +3,19 @@ import { computed, onMounted, ref } from 'vue'
 import { readApi, writeApi } from '../api'
 import { canWrite, isSuper } from '../stores/opsAuth'
 
+const TAG_MAX = 15
+
 const envs = ref([])
+const allTags = ref([])
 const creds = ref([])
 const err = ref('')
 const filterKind = ref('')
 const showEnv = ref(false)
 const showCred = ref(false)
 const reveal = ref(false)
-const envForm = ref({ name: '', kind: 'dev', description: '' })
+const editingId = ref('')
+const tagDraft = ref('')
+const envForm = ref({ name: '', kind: 'dev', description: '', tags: [] })
 const credForm = ref({
   envId: '',
   name: '',
@@ -25,10 +30,8 @@ const credForm = ref({
 const kinds = [
   { value: '', label: '全部' },
   { value: 'dev', label: 'dev' },
-  { value: 'test', label: 'test' },
-  { value: 'staging', label: 'staging' },
-  { value: 'prod', label: 'prod' },
-  { value: 'other', label: 'other' }
+  { value: 'uat', label: 'uat' },
+  { value: 'pro', label: 'pro' }
 ]
 
 const filteredEnvs = computed(() => {
@@ -36,8 +39,19 @@ const filteredEnvs = computed(() => {
   return envs.value.filter((e) => e.kind === filterKind.value)
 })
 
+const unusedTags = computed(() => {
+  const selected = new Set((envForm.value.tags || []).map((t) => t.toLowerCase()))
+  return allTags.value.filter((t) => !selected.has(String(t.name).toLowerCase()))
+})
+
+const envDrawerTitle = computed(() => (editingId.value ? '编辑环境' : '新建环境'))
+
 function credsOf(envId) {
   return creds.value.filter((c) => c.envId === envId)
+}
+
+function emptyEnvForm() {
+  return { name: '', kind: 'dev', description: '', tags: [] }
 }
 
 async function load() {
@@ -45,6 +59,8 @@ async function load() {
   try {
     const e = await readApi.environments()
     envs.value = Array.isArray(e?.items) ? e.items : []
+    const t = await readApi.tags()
+    allTags.value = Array.isArray(t?.items) ? t.items : []
     const c = await readApi.credentials('', reveal.value && isSuper.value)
     creds.value = Array.isArray(c?.items) ? c.items : []
   } catch (ex) {
@@ -58,11 +74,78 @@ async function toggleReveal() {
   await load()
 }
 
+function openCreateEnv() {
+  editingId.value = ''
+  envForm.value = emptyEnvForm()
+  tagDraft.value = ''
+  showEnv.value = true
+}
+
+function openEditEnv(env) {
+  editingId.value = env.id
+  envForm.value = {
+    name: env.name || '',
+    kind: env.kind || 'dev',
+    description: env.description || '',
+    tags: Array.isArray(env.tags) ? [...env.tags] : []
+  }
+  tagDraft.value = ''
+  showEnv.value = true
+}
+
+function normalizeTag(raw) {
+  return String(raw || '').trim()
+}
+
+function addTag(raw) {
+  const name = normalizeTag(raw)
+  if (!name) return
+  if ([...name].length > TAG_MAX) {
+    err.value = '标签须小于 16 个字符'
+    return
+  }
+  const tags = envForm.value.tags || []
+  if (tags.some((t) => t.toLowerCase() === name.toLowerCase())) {
+    tagDraft.value = ''
+    return
+  }
+  envForm.value.tags = [...tags, name]
+  tagDraft.value = ''
+  err.value = ''
+}
+
+function removeTag(name) {
+  envForm.value.tags = (envForm.value.tags || []).filter((t) => t !== name)
+}
+
+function onTagKeydown(e) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault()
+    addTag(tagDraft.value.replace(/,/g, ''))
+  } else if (e.key === 'Backspace' && !tagDraft.value && envForm.value.tags?.length) {
+    removeTag(envForm.value.tags[envForm.value.tags.length - 1])
+  }
+}
+
 async function saveEnv() {
   try {
-    await writeApi.createEnvironment(envForm.value)
+    const draft = normalizeTag(tagDraft.value)
+    if (draft) addTag(draft)
+    const body = {
+      name: envForm.value.name,
+      kind: envForm.value.kind,
+      description: envForm.value.description,
+      tags: [...(envForm.value.tags || [])]
+    }
+    if (editingId.value) {
+      await writeApi.updateEnvironment(editingId.value, body)
+    } else {
+      await writeApi.createEnvironment(body)
+    }
     showEnv.value = false
-    envForm.value = { name: '', kind: 'dev', description: '' }
+    editingId.value = ''
+    envForm.value = emptyEnvForm()
+    tagDraft.value = ''
     await load()
   } catch (e) {
     err.value = e?.message || '保存失败'
@@ -118,7 +201,7 @@ onMounted(load)
     <div class="toolbar">
       <div>
         <h1>环境</h1>
-        <p class="page-desc">按环境管理 Git / Harbor / SSH / API 授权信息；密码默认掩码。</p>
+        <p class="page-desc">简单发布所需的环境与凭据；密码默认掩码。标签全局最多 30 个。</p>
       </div>
       <div class="actions">
         <button type="button" class="btn" @click="load">刷新</button>
@@ -126,7 +209,7 @@ onMounted(load)
           {{ reveal ? '隐藏密钥' : '显示密钥' }}
         </button>
         <button v-if="isSuper" type="button" class="btn" @click="showCred = true">添加凭据</button>
-        <button v-if="isSuper" type="button" class="btn btn-primary" @click="showEnv = true">新建环境</button>
+        <button v-if="isSuper" type="button" class="btn btn-primary" @click="openCreateEnv">新建环境</button>
       </div>
     </div>
 
@@ -145,9 +228,13 @@ onMounted(load)
         <div>
           <strong>{{ env.name }}</strong>
           <span class="status-pill" style="margin-left:8px">{{ env.kind }}</span>
+          <span v-if="env.tags?.length" class="tag-list" style="margin-left:8px">
+            <span v-for="t in env.tags" :key="t" class="tag-chip">{{ t }}</span>
+          </span>
           <p class="muted" style="margin:0.25rem 0 0">{{ env.description || '—' }}</p>
         </div>
         <div v-if="isSuper" class="actions">
+          <button type="button" class="btn btn-sm" @click="openEditEnv(env)">编辑</button>
           <button type="button" class="btn btn-sm btn-danger" @click="removeEnv(env.id)">删除</button>
         </div>
       </div>
@@ -187,7 +274,7 @@ onMounted(load)
     <div v-if="showEnv" class="drawer-mask" @click.self="showEnv = false">
       <div class="drawer">
         <div class="drawer-head">
-          <h2 style="margin:0;font-size:1.1rem">新建环境</h2>
+          <h2 style="margin:0;font-size:1.1rem">{{ envDrawerTitle }}</h2>
           <button type="button" class="btn btn-sm" @click="showEnv = false">关闭</button>
         </div>
         <div class="form-row">
@@ -198,11 +285,38 @@ onMounted(load)
           <label>分类</label>
           <select v-model="envForm.kind">
             <option value="dev">dev</option>
-            <option value="test">test</option>
-            <option value="staging">staging</option>
-            <option value="prod">prod</option>
-            <option value="other">other</option>
+            <option value="uat">uat</option>
+            <option value="pro">pro</option>
           </select>
+        </div>
+        <div class="form-row">
+          <label>标签</label>
+          <div class="tag-list" style="margin-bottom:6px" v-if="envForm.tags?.length">
+            <span v-for="t in envForm.tags" :key="t" class="tag-chip">
+              {{ t }}
+              <button type="button" title="移除" @click="removeTag(t)">×</button>
+            </span>
+          </div>
+          <div class="tag-input-row">
+            <input
+              v-model="tagDraft"
+              maxlength="15"
+              placeholder="选择或输入，回车添加（少于16字，全局最多30）"
+              @keydown="onTagKeydown"
+            />
+            <button type="button" class="btn btn-sm" @click="addTag(tagDraft)">添加</button>
+          </div>
+          <div v-if="unusedTags.length" class="tag-suggest">
+            <button
+              v-for="t in unusedTags"
+              :key="t.id"
+              type="button"
+              class="btn btn-sm"
+              @click="addTag(t.name)"
+            >
+              {{ t.name }}
+            </button>
+          </div>
         </div>
         <div class="form-row">
           <label>描述</label>

@@ -3,7 +3,7 @@ import { readApi } from '../api'
 
 const ui = reactive({
   title: 'depman',
-  tagline: 'practice makes perfect',
+  tagline: '简单发布',
   hasBanner: false,
   bannerUrl: '',
   iconUrl: '/icon',

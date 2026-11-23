@@ -54,7 +54,7 @@ onMounted(load)
     <div class="toolbar">
       <div>
         <h1>depman</h1>
-        <p class="page-desc">按项目查看发布摘要；点进胶囊进入主题页，对指定环境 SSH 执行脚本发布。</p>
+        <p class="page-desc">简单发布：按项目绑定环境，SSH 执行脚本一键部署。</p>
       </div>
       <div class="actions">
         <button type="button" class="btn" :disabled="loading" @click="load">刷新</button>

@@ -116,7 +116,7 @@ onUnmounted(() => window.clearInterval(pollTimer))
     <div class="toolbar">
       <div>
         <h1>{{ project?.name || '项目' }}</h1>
-        <p class="page-desc">{{ project?.description || '配置环境绑定与发布脚本，SSH 到目标机执行。' }}</p>
+        <p class="page-desc">{{ project?.description || '简单发布：绑定环境与脚本，SSH 到目标机执行。' }}</p>
       </div>
       <div class="actions">
         <button type="button" class="btn" @click="router.push('/')">返回</button>

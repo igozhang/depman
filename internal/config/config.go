@@ -24,7 +24,7 @@ type UISettings struct {
 }
 
 const defaultTitle = "depman"
-const FixedTagline = "practice makes perfect"
+const FixedTagline = "简单发布"
 
 const defaultConfBody = `addr=:8080
 data_dir=./data
@@ -44,7 +44,7 @@ title=depman
 # | icon     | （仅 conf）     | （自动探测）         | etc 下站点 icon 文件名 |
 # | banner   | （仅 conf）     | （自动探测）         | etc 下 banner 图片 |
 #
-# 页眉 slogan 固定为 practice makes perfect；双击可复制超管 igokey。
+# 页眉 slogan 固定为「简单发布」；双击可复制超管 igokey。
 #
 # 鉴权：
 #   默认只读。GET /api/v1/auth/igokey 取得 8 位字母超管密钥（约 1 小时）。
