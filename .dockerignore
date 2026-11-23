@@ -1,0 +1,9 @@
+.git
+data
+*.exe
+*.db
+*.log
+web/node_modules
+web/dist
+cmd/server/webdist
+.cursor
