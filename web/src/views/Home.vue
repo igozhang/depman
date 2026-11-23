@@ -75,7 +75,7 @@ onMounted(load)
         @click="open(it.id)"
       >
         <h2 class="capsule-title">{{ it.name }}</h2>
-        <p class="muted" style="margin:0;font-size:13px;min-height:1.3em">{{ it.description || '（无描述）' }}</p>
+        <p class="muted" style="margin:0;min-height:1.3em">{{ it.description || '（无描述）' }}</p>
         <div class="capsule-meta">
           <span>{{ it.envCount || 0 }} 环境</span>
           <span v-if="it.lastEnvName">最近：{{ it.lastEnvName }}</span>

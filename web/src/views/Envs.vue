@@ -145,7 +145,7 @@ onMounted(load)
         <div>
           <strong>{{ env.name }}</strong>
           <span class="status-pill" style="margin-left:8px">{{ env.kind }}</span>
-          <p class="muted" style="margin:0.25rem 0 0;font-size:12px">{{ env.description || '—' }}</p>
+          <p class="muted" style="margin:0.25rem 0 0">{{ env.description || '—' }}</p>
         </div>
         <div v-if="isSuper" class="actions">
           <button type="button" class="btn btn-sm btn-danger" @click="removeEnv(env.id)">删除</button>

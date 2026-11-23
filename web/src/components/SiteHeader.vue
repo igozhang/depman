@@ -130,8 +130,6 @@ onUnmounted(() => {
         class="ops-key-input"
         autocomplete="off"
         spellcheck="false"
-        maxlength="8"
-        placeholder="8 位字母 key"
         @keydown.enter.prevent="submit"
       />
       <button type="button" class="btn btn-primary" :disabled="state.busy" @click="submit">验证</button>
