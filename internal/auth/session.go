@@ -114,10 +114,10 @@ func (s *Service) IssueSession(key string) (token string, expiresAt time.Time, i
 			igoKey:       key,
 			igoExpiresAt: exp,
 			role:         model.RoleSuper,
-			label:        "项目超管",
+			label:        "超管",
 		}
 		s.sessMu.Unlock()
-		info = model.SessionInfo{Role: model.RoleSuper, Label: "项目超管"}
+		info = model.SessionInfo{Role: model.RoleSuper, Label: "超管"}
 		return tok, exp, info, true
 	}
 

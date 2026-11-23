@@ -1,10 +1,9 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { readApi, writeApi } from '../api'
-import { canWrite, isSuper, remainingSec, fmtBeijing, login, logout, useOpsAuth } from '../stores/opsAuth'
+import { canWrite, isSuper, remainingSec, fmtBeijing, logout, useOpsAuth } from '../stores/opsAuth'
 
 const { state } = useOpsAuth()
-const key = ref('')
 const msg = ref('')
 const msgOk = ref(null)
 const scoped = ref([])
@@ -16,32 +15,17 @@ const issuedPlain = ref('')
 const expiryText = computed(() => {
   if (!canWrite.value || !state.expiresAt) return ''
   const mins = Math.max(0, Math.ceil(remainingSec() / 60))
-  const role = state.session?.label || state.session?.role || ''
+  const role = state.session?.label || (isSuper.value ? '超管' : '可写')
   return `${role} · 有效期至 ${fmtBeijing(state.expiresAt)}（剩余 ${mins} 分钟）`
 })
 
 const expiryWarn = computed(() => canWrite.value && remainingSec() < 5 * 60)
 
-async function submit() {
-  msg.value = ''
-  msgOk.value = null
-  try {
-    await login(key.value)
-    msg.value = '验证通过'
-    msgOk.value = true
-    key.value = ''
-    await loadScoped()
-  } catch (e) {
-    msg.value = e?.message || '验证失败'
-    msgOk.value = false
-  }
-}
-
 function onLogout() {
   logout()
   scoped.value = []
   issuedPlain.value = ''
-  msg.value = '已退出可操作权限，当前为只读'
+  msg.value = '已退出，当前为只读'
   msgOk.value = null
 }
 
@@ -108,39 +92,21 @@ onMounted(() => {
     <div class="toolbar">
       <div>
         <h1>登录</h1>
-        <p class="page-desc">默认只读。输入超管 key 或项目管理 key；超管可在此签发作用域 key。</p>
+        <p class="page-desc">默认只读。双击页眉图标下方「只读」在右侧抽屉输入 key；已登录可双击「超管」退出。超管可在此签发项目管理 key。</p>
       </div>
     </div>
 
-    <div v-if="!canWrite" class="panel ops-panel">
-      <div class="form-row ops-key-row">
-        <label for="igoKey">验证密钥（key）</label>
-        <input
-          id="igoKey"
-          v-model="key"
-          type="text"
-          class="ops-key-input"
-          autocomplete="off"
-          spellcheck="false"
-          maxlength="8"
-          placeholder="8 位字母 key"
-          @keydown.enter.prevent="submit"
-        />
-      </div>
-      <div class="toolbar toolbar-start">
-        <button type="button" class="btn btn-primary" :disabled="state.busy" @click="submit">
-          {{ state.busy ? '验证中…' : '验证' }}
-        </button>
-      </div>
-      <p class="ops-msg" :class="{ 'is-ok': msgOk === true, 'is-err': msgOk === false }" aria-live="polite">{{ msg }}</p>
-    </div>
-
-    <div v-else class="panel ops-panel">
-      <p class="notice ops-ok">已验证，当前可进行写操作。</p>
-      <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
-      <div class="toolbar toolbar-start">
-        <button type="button" class="btn" @click="onLogout">退出可操作</button>
-      </div>
+    <div class="panel ops-panel">
+      <template v-if="!canWrite">
+        <p class="muted">当前只读。请双击页眉图标下「只读」打开抽屉验证。</p>
+      </template>
+      <template v-else>
+        <p class="notice ops-ok">已验证（{{ state.session?.label || (isSuper ? '超管' : '可写') }}）。</p>
+        <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
+        <div class="toolbar toolbar-start">
+          <button type="button" class="btn" @click="onLogout">退出</button>
+        </div>
+      </template>
       <p v-if="msg" class="ops-msg" :class="{ 'is-ok': msgOk === true, 'is-err': msgOk === false }">{{ msg }}</p>
     </div>
 

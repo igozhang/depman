@@ -25,12 +25,9 @@ metadata:
     app: depman
 spec:
   replicas: 1
-  # 先起新再下旧，避免 Recreate 空窗；RWO 需新旧 Pod 同节点（见 affinity）
+  # 单副本 + local-path RWO：用 Recreate，避免 RollingUpdate 新旧抢卷卡死
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    type: Recreate
   selector:
     matchLabels:
       app: depman
@@ -40,20 +37,8 @@ spec:
         app: depman
     spec:
       # conf / icon：DEPMAN_ETC_DIR=/data/etc（与 DB 同 PVC，重启不丢）
-      # RWO PVC 允许多个 Pod 在同一节点挂载；滚动时优先调度到旧 Pod 所在节点
-      affinity:
-        podAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app: depman
-                topologyKey: kubernetes.io/hostname
-      terminationGracePeriodSeconds: 45
-      # 若节点未配置腾讯云 CCR 拉取凭证，取消注释并创建同名 Secret：
-      # imagePullSecrets:
-      #   - name: tcr-igokorea
+      # 镜像拉取：不在此写 imagePullSecrets；由 ns default ServiceAccount 挂密钥（见 deploy.md）
+      terminationGracePeriodSeconds: 30
       containers:
         - name: depman
           image: krccr.ccs.tencentyun.com/igokorea/depman:latest
@@ -76,11 +61,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-          lifecycle:
-            preStop:
-              exec:
-                # 给 Ingress/连接一点排空时间，再结束旧 Pod
-                command: ["/bin/sh", "-c", "sleep 8"]
           readinessProbe:
             httpGet:
               path: /api/health

@@ -86,7 +86,7 @@ docs/deploy.md        部署说明
 - 构建机：`VM-4-11-ubuntu`（nerdctl，2C2G 限并行 + cache）
 - 运行：`zabbix68`，Namespace / Deployment 均为 `depman`，域名 `depman.igozhang.cn`
 
-步骤见 [docs/deploy.md](docs/deploy.md)（单条 build/push 命令）。
+步骤见 [deploy/deploy.md](deploy/deploy.md)。
 
 ## Logo
 
@@ -94,4 +94,4 @@ docs/deploy.md        部署说明
 
 ## 文档
 
-- [部署](docs/deploy.md)
+- [部署](deploy/deploy.md)
