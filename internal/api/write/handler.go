@@ -347,3 +347,20 @@ func (h *Handler) DeleteScopedKey(c *gin.Context) {
 	}
 	respond.OK(c, gin.H{"ok": true})
 }
+
+func (h *Handler) CopyScopedKey(c *gin.Context) {
+	if !auth.IsSuper(middleware.Session(c)) {
+		respond.Forbidden(c, "需要项目超管权限")
+		return
+	}
+	plain, err := h.Store.PlainScopedKey(c.Param("id"))
+	if err == store.ErrNotFound {
+		respond.NotFound(c, "不可复制或已失效")
+		return
+	}
+	if err != nil {
+		respond.Internal(c, err.Error())
+		return
+	}
+	respond.OK(c, gin.H{"plainKey": plain})
+}

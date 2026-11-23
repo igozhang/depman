@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { readApi, writeApi } from '../api'
 import { canWrite, isSuper, remainingSec, fmtBeijing, login, logout, useOpsAuth } from '../stores/opsAuth'
+import { copyText } from '../utils/clipboard'
 
 const { state } = useOpsAuth()
 const key = ref('')
@@ -79,6 +80,17 @@ async function createScoped() {
   } catch (e) {
     msg.value = e?.message || '签发失败'
     msgOk.value = false
+  }
+}
+
+async function copyScoped(id) {
+  try {
+    const data = await writeApi.scopedKeyPlain(id)
+    const plain = String(data?.plainKey || '').trim()
+    if (!plain) return
+    await copyText(plain)
+  } catch {
+    /* silent */
   }
 }
 
@@ -194,6 +206,7 @@ onMounted(() => {
               <td><code>{{ k.keyHint }}</code></td>
               <td>{{ new Date(k.expiresAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
               <td class="actions">
+                <button type="button" class="btn btn-sm" @click="copyScoped(k.id)">复制</button>
                 <button type="button" class="btn btn-sm btn-danger" @click="removeScoped(k.id)">撤销</button>
               </td>
             </tr>

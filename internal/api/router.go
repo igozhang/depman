@@ -124,6 +124,7 @@ func NewRouter(d Deps) *gin.Engine {
 		writeG.POST("/ssh/test", wh.TestSSH)
 
 		writeG.POST("/scoped-keys", wh.CreateScopedKey)
+		writeG.GET("/scoped-keys/:id/plain", wh.CopyScopedKey)
 		writeG.DELETE("/scoped-keys/:id", wh.DeleteScopedKey)
 	}
 

@@ -124,7 +124,12 @@ CREATE INDEX IF NOT EXISTS idx_cred_env ON credentials(env_id);
 CREATE INDEX IF NOT EXISTS idx_pe_project ON project_envs(project_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON deploy_jobs(created_at DESC);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	// 兼容旧库：明文加密列（供超管复制）；已存在则忽略
+	_, _ = s.db.Exec(`ALTER TABLE scoped_keys ADD COLUMN plain_enc TEXT NOT NULL DEFAULT ''`)
+	return nil
 }
 
 func nowUnix() int64 { return time.Now().Unix() }

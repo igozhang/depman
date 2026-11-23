@@ -72,6 +72,9 @@ export const writeApi = {
   createScopedKey(body) {
     return http.post('/write/scoped-keys', body)
   },
+  scopedKeyPlain(id) {
+    return http.get(`/write/scoped-keys/${id}/plain`)
+  },
   deleteScopedKey(id) {
     return http.delete(`/write/scoped-keys/${id}`)
   }

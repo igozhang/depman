@@ -66,14 +66,16 @@ func looksLikeScoped(key string) bool {
 	return true
 }
 
+const scopedKeyRetain = 30
+
 func (s *Store) ListScopedKeys() ([]model.ScopedKey, error) {
-	rows, err := s.db.Query(`SELECT id, label, key_hint, project_ids, env_ids, expires_at, created_at, created_by FROM scoped_keys ORDER BY created_at DESC`)
+	_ = s.pruneScopedKeys()
+	rows, err := s.db.Query(`SELECT id, label, key_hint, project_ids, env_ids, expires_at, created_at, created_by FROM scoped_keys WHERE expires_at > ? ORDER BY created_at DESC LIMIT ?`, time.Now().Unix(), scopedKeyRetain)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []model.ScopedKey
-	now := time.Now()
 	for rows.Next() {
 		var k model.ScopedKey
 		var pJSON, eJSON string
@@ -91,11 +93,22 @@ func (s *Store) ListScopedKeys() ([]model.ScopedKey, error) {
 		if k.EnvIDs == nil {
 			k.EnvIDs = []string{}
 		}
-		if k.ExpiresAt.After(now) {
-			out = append(out, k)
-		}
+		out = append(out, k)
 	}
 	return out, rows.Err()
+}
+
+// pruneScopedKeys 删除已过期，并只保留最近 scopedKeyRetain 条（超出直接注销）。
+func (s *Store) pruneScopedKeys() error {
+	now := time.Now().Unix()
+	if _, err := s.db.Exec(`DELETE FROM scoped_keys WHERE expires_at <= ?`, now); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`
+DELETE FROM scoped_keys WHERE id IN (
+  SELECT id FROM scoped_keys ORDER BY created_at DESC LIMIT -1 OFFSET ?
+)`, scopedKeyRetain)
+	return err
 }
 
 // SiteKeyChecker reports whether a plain key is the active site super key.
@@ -143,6 +156,10 @@ func (s *Store) CreateScopedKeyChecked(in model.ScopedKeyInput, createdBy string
 		return model.ScopedKey{}, fmtError("无法生成唯一 key")
 	}
 
+	enc, err := s.box.Seal(plain)
+	if err != nil {
+		return model.ScopedKey{}, err
+	}
 	k := model.ScopedKey{
 		ID:         uuid.NewString(),
 		Label:      strings.TrimSpace(in.Label),
@@ -157,13 +174,31 @@ func (s *Store) CreateScopedKeyChecked(in model.ScopedKeyInput, createdBy string
 	if k.Label == "" {
 		k.Label = "项目管理"
 	}
-	_, err = s.db.Exec(`INSERT INTO scoped_keys(id,label,key_hash,key_hint,project_ids,env_ids,expires_at,created_at,created_by)
-VALUES(?,?,?,?,?,?,?,?,?)`,
-		k.ID, k.Label, hashKey(plain), k.KeyHint, string(pJSON), string(eJSON), exp.Unix(), now.Unix(), createdBy)
+	_, err = s.db.Exec(`INSERT INTO scoped_keys(id,label,key_hash,key_hint,project_ids,env_ids,expires_at,created_at,created_by,plain_enc)
+VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		k.ID, k.Label, hashKey(plain), k.KeyHint, string(pJSON), string(eJSON), exp.Unix(), now.Unix(), createdBy, enc)
 	if err != nil {
 		return model.ScopedKey{}, err
 	}
+	_ = s.pruneScopedKeys()
 	return k, nil
+}
+
+// PlainScopedKey 解密出明文（仅超管复制用）；无密文或已失效则 NotFound。
+func (s *Store) PlainScopedKey(id string) (string, error) {
+	var enc string
+	var exp int64
+	err := s.db.QueryRow(`SELECT plain_enc, expires_at FROM scoped_keys WHERE id=?`, id).Scan(&enc, &exp)
+	if err == sql.ErrNoRows {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if !time.Unix(exp, 0).After(time.Now()) || enc == "" {
+		return "", ErrNotFound
+	}
+	return s.box.Open(enc)
 }
 
 func (s *Store) DeleteScopedKey(id string) error {
