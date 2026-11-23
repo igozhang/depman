@@ -135,7 +135,6 @@ onMounted(load)
       <select v-model="filterKind">
         <option v-for="k in kinds" :key="k.value" :value="k.value">{{ k.label }}</option>
       </select>
-      <span v-if="!canWrite" class="muted">只读模式</span>
     </div>
 
     <p v-if="err" class="ops-msg is-err">{{ err }}</p>

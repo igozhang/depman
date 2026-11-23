@@ -25,7 +25,7 @@ function onLogout() {
   logout()
   scoped.value = []
   issuedPlain.value = ''
-  msg.value = '已退出，当前为只读'
+  msg.value = ''
   msgOk.value = null
 }
 
@@ -92,21 +92,16 @@ onMounted(() => {
     <div class="toolbar">
       <div>
         <h1>登录</h1>
-        <p class="page-desc">默认只读。双击页眉图标下方「只读」在右侧抽屉输入 key；已登录可双击「超管」退出。超管可在此签发项目管理 key。</p>
+        <p class="page-desc">会话与项目管理 key。</p>
       </div>
     </div>
 
-    <div class="panel ops-panel">
-      <template v-if="!canWrite">
-        <p class="muted">当前只读。请双击页眉图标下「只读」打开抽屉验证。</p>
-      </template>
-      <template v-else>
-        <p class="notice ops-ok">已验证（{{ state.session?.label || (isSuper ? '超管' : '可写') }}）。</p>
-        <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
-        <div class="toolbar toolbar-start">
-          <button type="button" class="btn" @click="onLogout">退出</button>
-        </div>
-      </template>
+    <div v-if="canWrite" class="panel ops-panel">
+      <p class="notice ops-ok">{{ state.session?.label || (isSuper ? '超管' : '可写') }}</p>
+      <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
+      <div class="toolbar toolbar-start">
+        <button type="button" class="btn" @click="onLogout">退出</button>
+      </div>
       <p v-if="msg" class="ops-msg" :class="{ 'is-ok': msgOk === true, 'is-err': msgOk === false }">{{ msg }}</p>
     </div>
 

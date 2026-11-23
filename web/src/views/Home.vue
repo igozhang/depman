@@ -65,7 +65,7 @@ onMounted(load)
     <p v-if="err" class="ops-msg is-err">{{ err }}</p>
     <div v-if="loading && !items.length" class="empty">加载中…</div>
     <div v-else-if="!items.length" class="empty">
-      暂无项目<template v-if="!canWrite">（只读；登录后可创建）</template>
+      暂无项目
     </div>
     <div v-else class="capsule-grid">
       <article
