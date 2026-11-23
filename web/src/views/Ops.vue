@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { readApi, writeApi } from '../api'
-import { canWrite, isSuper, remainingSec, fmtBeijing, logout, useOpsAuth } from '../stores/opsAuth'
+import { canWrite, isSuper, remainingSec, fmtBeijing, login, logout, useOpsAuth } from '../stores/opsAuth'
 
 const { state } = useOpsAuth()
+const key = ref('')
 const msg = ref('')
 const msgOk = ref(null)
 const scoped = ref([])
@@ -20,6 +21,20 @@ const expiryText = computed(() => {
 })
 
 const expiryWarn = computed(() => canWrite.value && remainingSec() < 5 * 60)
+
+async function submit() {
+  const k = String(key.value || '').trim()
+  if (!k || state.busy) return
+  msg.value = ''
+  msgOk.value = null
+  try {
+    await login(k)
+    key.value = ''
+    await loadScoped()
+  } catch {
+    /* silent */
+  }
+}
 
 function onLogout() {
   logout()
@@ -89,95 +104,105 @@ onMounted(() => {
 
 <template>
   <div>
-    <div class="toolbar">
-      <div>
-        <h1>登录</h1>
-        <p class="page-desc">会话与项目管理 key。</p>
+    <div v-if="!canWrite" class="ops-login-center">
+      <div class="toolbar toolbar-start ops-login-row">
+        <input
+          v-model="key"
+          type="text"
+          class="ops-key-input"
+          autocomplete="off"
+          spellcheck="false"
+          @keydown.enter.prevent="submit"
+        />
+        <button type="button" class="btn btn-primary" :disabled="state.busy" @click="submit">
+          {{ state.busy ? '…' : '登录' }}
+        </button>
       </div>
     </div>
 
-    <div v-if="canWrite" class="panel ops-panel">
-      <p class="notice ops-ok">{{ state.session?.label || (isSuper ? '超管' : '可写') }}</p>
-      <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
-      <div class="toolbar toolbar-start">
-        <button type="button" class="btn" @click="onLogout">退出</button>
-      </div>
-      <p v-if="msg" class="ops-msg" :class="{ 'is-ok': msgOk === true, 'is-err': msgOk === false }">{{ msg }}</p>
-    </div>
-
-    <div v-if="isSuper" class="panel">
-      <div class="toolbar">
-        <div>
-          <h2 style="margin:0;font-size:1.05rem">签发项目管理 key</h2>
-          <p class="page-desc">绑定项目与环境；留空表示该维度不限。明文仅创建时显示一次。</p>
+    <template v-else>
+      <div class="panel ops-panel">
+        <p class="notice ops-ok">{{ state.session?.label || (isSuper ? '超管' : '可写') }}</p>
+        <p class="muted ops-expiry" :class="{ 'is-warn': expiryWarn }">{{ expiryText }}</p>
+        <div class="toolbar toolbar-start">
+          <button type="button" class="btn" @click="onLogout">退出</button>
         </div>
+        <p v-if="msg" class="ops-msg" :class="{ 'is-ok': msgOk === true, 'is-err': msgOk === false }">{{ msg }}</p>
       </div>
-      <div class="form-grid">
+
+      <div v-if="isSuper" class="panel">
+        <div class="toolbar">
+          <div>
+            <h2 style="margin:0;font-size:1.05rem">签发项目管理 key</h2>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label>标签</label>
+            <input v-model="issue.label" />
+          </div>
+          <div class="form-row">
+            <label>有效小时</label>
+            <input v-model.number="issue.ttlHours" type="number" min="1" max="168" />
+          </div>
+        </div>
         <div class="form-row">
-          <label>标签</label>
-          <input v-model="issue.label" placeholder="如 前端组" />
+          <label>项目（可多选）</label>
+          <div class="kv-row">
+            <label v-for="p in projects" :key="p.id" class="status-pill" style="cursor:pointer">
+              <input
+                type="checkbox"
+                :checked="issue.projectIds.includes(p.id)"
+                @change="toggleId(issue.projectIds, p.id)"
+              />
+              {{ p.name }}
+            </label>
+          </div>
         </div>
         <div class="form-row">
-          <label>有效小时</label>
-          <input v-model.number="issue.ttlHours" type="number" min="1" max="168" />
+          <label>环境（可多选）</label>
+          <div class="kv-row">
+            <label v-for="e in envs" :key="e.id" class="status-pill" style="cursor:pointer">
+              <input
+                type="checkbox"
+                :checked="issue.envIds.includes(e.id)"
+                @change="toggleId(issue.envIds, e.id)"
+              />
+              {{ e.name }}
+            </label>
+          </div>
         </div>
-      </div>
-      <div class="form-row">
-        <label>项目（可多选）</label>
-        <div class="kv-row">
-          <label v-for="p in projects" :key="p.id" class="status-pill" style="cursor:pointer">
-            <input
-              type="checkbox"
-              :checked="issue.projectIds.includes(p.id)"
-              @change="toggleId(issue.projectIds, p.id)"
-            />
-            {{ p.name }}
-          </label>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" @click="createScoped">签发</button>
         </div>
-      </div>
-      <div class="form-row">
-        <label>环境（可多选）</label>
-        <div class="kv-row">
-          <label v-for="e in envs" :key="e.id" class="status-pill" style="cursor:pointer">
-            <input
-              type="checkbox"
-              :checked="issue.envIds.includes(e.id)"
-              @change="toggleId(issue.envIds, e.id)"
-            />
-            {{ e.name }}
-          </label>
-        </div>
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn-primary" @click="createScoped">签发</button>
-      </div>
-      <p v-if="issuedPlain" class="notice ops-ok">
-        新 key（请立即复制）：<code>{{ issuedPlain }}</code>
-      </p>
+        <p v-if="issuedPlain" class="notice ops-ok">
+          <code>{{ issuedPlain }}</code>
+        </p>
 
-      <table class="data" style="margin-top:1rem">
-        <thead>
-          <tr>
-            <th>标签</th>
-            <th>hint</th>
-            <th>过期</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="k in scoped" :key="k.id">
-            <td>{{ k.label }}</td>
-            <td><code>{{ k.keyHint }}</code></td>
-            <td>{{ new Date(k.expiresAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
-            <td class="actions">
-              <button type="button" class="btn btn-sm btn-danger" @click="removeScoped(k.id)">撤销</button>
-            </td>
-          </tr>
-          <tr v-if="!scoped.length">
-            <td colspan="4" class="muted">暂无作用域 key</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+        <table class="data" style="margin-top:1rem">
+          <thead>
+            <tr>
+              <th>标签</th>
+              <th>hint</th>
+              <th>过期</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="k in scoped" :key="k.id">
+              <td>{{ k.label }}</td>
+              <td><code>{{ k.keyHint }}</code></td>
+              <td>{{ new Date(k.expiresAt).toLocaleString('zh-CN', { hour12: false }) }}</td>
+              <td class="actions">
+                <button type="button" class="btn btn-sm btn-danger" @click="removeScoped(k.id)">撤销</button>
+              </td>
+            </tr>
+            <tr v-if="!scoped.length">
+              <td colspan="4" class="muted">暂无作用域 key</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
   </div>
 </template>
