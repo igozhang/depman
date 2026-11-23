@@ -128,8 +128,13 @@ func (s *Store) CreateScopedKeyChecked(in model.ScopedKeyInput, createdBy string
 	if ttl > 168 {
 		ttl = 168
 	}
-	pJSON, _ := json.Marshal(uniq(in.ProjectIDs))
-	eJSON, _ := json.Marshal(uniq(in.EnvIDs))
+	pids := uniq(in.ProjectIDs)
+	eids := uniq(in.EnvIDs)
+	if len(pids) == 0 && len(eids) == 0 {
+		return model.ScopedKey{}, fmtError("须至少绑定一个项目或环境")
+	}
+	pJSON, _ := json.Marshal(pids)
+	eJSON, _ := json.Marshal(eids)
 	now := time.Now()
 	exp := now.Add(time.Duration(ttl) * time.Hour)
 
@@ -164,8 +169,8 @@ func (s *Store) CreateScopedKeyChecked(in model.ScopedKeyInput, createdBy string
 		ID:         uuid.NewString(),
 		Label:      strings.TrimSpace(in.Label),
 		KeyHint:    hintKey(plain),
-		ProjectIDs: uniq(in.ProjectIDs),
-		EnvIDs:     uniq(in.EnvIDs),
+		ProjectIDs: pids,
+		EnvIDs:     eids,
 		ExpiresAt:  exp,
 		CreatedAt:  now,
 		CreatedBy:  createdBy,

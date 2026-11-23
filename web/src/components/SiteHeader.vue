@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useSiteUI } from '../composables/useSiteUI'
-import { canWrite, login, logout, useOpsAuth } from '../stores/opsAuth'
+import { canWrite, isSuper, login, logout, useOpsAuth } from '../stores/opsAuth'
 import { authApi } from '../api'
 import { copyText } from '../utils/clipboard'
 
@@ -14,7 +14,10 @@ const open = ref(false)
 const key = ref('')
 const keyInput = ref(null)
 
-const permText = computed(() => (canWrite.value ? '超管' : '只读'))
+const permText = computed(() => {
+  if (!canWrite.value) return '只读'
+  return isSuper.value ? '超管' : '可写'
+})
 
 const KEY_CACHE_MS = 5 * 60 * 1000
 let fetchPending = false

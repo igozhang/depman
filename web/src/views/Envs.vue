@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { readApi, writeApi } from '../api'
 import { canWrite, isSuper } from '../stores/opsAuth'
 
@@ -16,16 +16,42 @@ const reveal = ref(false)
 const editingId = ref('')
 const tagDraft = ref('')
 const envForm = ref({ name: '', kind: 'dev', description: '', tags: [] })
-const credForm = ref({
-  envId: '',
-  name: '',
-  type: 'ssh',
-  host: '',
-  port: 22,
-  username: '',
-  secret: '',
-  extra: ''
-})
+const credForm = ref(emptyCredForm())
+
+function emptyCredForm() {
+  return {
+    envId: '',
+    name: '',
+    type: 'ssh',
+    host: '',
+    port: 22,
+    username: '',
+    secret: '',
+    extra: ''
+  }
+}
+
+/** Port defaults by type; 0 = protocol default */
+function defaultPortForType(type) {
+  switch (type) {
+    case 'ssh':
+      return 22
+    case 'harbor':
+    case 'api':
+      return 443
+    case 'git':
+      return 0
+    default:
+      return 0
+  }
+}
+
+watch(
+  () => credForm.value.type,
+  (type) => {
+    credForm.value.port = defaultPortForType(type)
+  }
+)
 
 const kinds = [
   { value: '', label: '全部' },
@@ -72,6 +98,11 @@ async function toggleReveal() {
   if (!isSuper.value) return
   reveal.value = !reveal.value
   await load()
+}
+
+function openCreateCred() {
+  credForm.value = emptyCredForm()
+  showCred.value = true
 }
 
 function openCreateEnv() {
@@ -167,7 +198,7 @@ async function saveCred() {
     const body = { ...credForm.value, port: Number(credForm.value.port) || 0 }
     await writeApi.createCredential(body)
     showCred.value = false
-    credForm.value = { envId: '', name: '', type: 'ssh', host: '', port: 22, username: '', secret: '', extra: '' }
+    credForm.value = emptyCredForm()
     await load()
   } catch (e) {
     err.value = e?.message || '保存失败'
@@ -208,7 +239,7 @@ onMounted(load)
         <button v-if="isSuper" type="button" class="btn" @click="toggleReveal">
           {{ reveal ? '隐藏密钥' : '显示密钥' }}
         </button>
-        <button v-if="isSuper" type="button" class="btn" @click="showCred = true">添加凭据</button>
+        <button v-if="isSuper" type="button" class="btn" @click="openCreateCred">添加凭据</button>
         <button v-if="isSuper" type="button" class="btn btn-primary" @click="openCreateEnv">新建环境</button>
       </div>
     </div>
@@ -359,11 +390,19 @@ onMounted(load)
         <div class="form-grid">
           <div class="form-row">
             <label>主机</label>
-            <input v-model="credForm.host" />
+            <input
+              v-model="credForm.host"
+              :placeholder="credForm.type === 'git' ? 'git.example.com or URL' : ''"
+            />
           </div>
           <div class="form-row">
             <label>端口</label>
-            <input v-model="credForm.port" type="number" />
+            <input
+              v-model="credForm.port"
+              type="number"
+              min="0"
+              :placeholder="credForm.type === 'git' ? '0 = protocol default' : ''"
+            />
           </div>
         </div>
         <div class="form-row">

@@ -70,6 +70,21 @@ func (s *Store) UpsertProjectEnv(in model.ProjectEnvInput) (model.ProjectEnv, er
 	if _, err := s.GetEnvironment(in.EnvID); err != nil {
 		return model.ProjectEnv{}, err
 	}
+	if cid := strings.TrimSpace(in.SSHCredID); cid != "" {
+		cr, err := s.GetCredential(cid, false)
+		if err == ErrNotFound {
+			return model.ProjectEnv{}, fmtError("SSH 凭据不存在")
+		}
+		if err != nil {
+			return model.ProjectEnv{}, err
+		}
+		if cr.Type != "ssh" {
+			return model.ProjectEnv{}, fmtError("发布凭据须为 ssh 类型")
+		}
+		if cr.EnvID != in.EnvID {
+			return model.ProjectEnv{}, fmtError("SSH 凭据须属于所选环境")
+		}
+	}
 	var existingID string
 	err := s.db.QueryRow(`SELECT id FROM project_envs WHERE project_id=? AND env_id=?`, in.ProjectID, in.EnvID).Scan(&existingID)
 	now := nowUnix()

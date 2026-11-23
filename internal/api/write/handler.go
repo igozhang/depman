@@ -117,6 +117,10 @@ func (h *Handler) UpdateEnvironment(c *gin.Context) {
 		return
 	}
 	if err != nil {
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+			return
+		}
 		respond.Internal(c, err.Error())
 		return
 	}
@@ -177,6 +181,10 @@ func (h *Handler) UpdateCredential(c *gin.Context) {
 		return
 	}
 	if err != nil {
+		if store.IsValidation(err) || err == store.ErrNotFound {
+			respond.BadRequest(c, err.Error())
+			return
+		}
 		respond.Internal(c, err.Error())
 		return
 	}
@@ -292,6 +300,14 @@ func (h *Handler) TestSSH(c *gin.Context) {
 	}
 	if err != nil {
 		respond.Internal(c, err.Error())
+		return
+	}
+	if cred.Type != "ssh" {
+		respond.BadRequest(c, "仅 ssh 凭据可测试连通")
+		return
+	}
+	if strings.TrimSpace(cred.Host) == "" {
+		respond.BadRequest(c, "主机不能为空")
 		return
 	}
 	if !auth.CanAccessEnv(info, cred.EnvID) {

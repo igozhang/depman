@@ -41,7 +41,10 @@ func (s *Store) ListEnvironments() ([]model.Environment, error) {
 	}
 	// MaxOpenConns(1)：必须先关闭 rows 再查标签，否则嵌套 Query 会死锁
 	for i := range out {
-		tags, _ := s.tagsOfEnv(out[i].ID)
+		tags, err := s.tagsOfEnv(out[i].ID)
+		if err != nil {
+			return nil, err
+		}
 		out[i].Tags = tags
 	}
 	return out, nil
@@ -60,7 +63,10 @@ func (s *Store) GetEnvironment(id string) (model.Environment, error) {
 	}
 	e.CreatedAt = time.Unix(cAt, 0)
 	e.UpdatedAt = time.Unix(uAt, 0)
-	tags, _ := s.tagsOfEnv(e.ID)
+	tags, err := s.tagsOfEnv(e.ID)
+	if err != nil {
+		return e, err
+	}
 	e.Tags = tags
 	return e, nil
 }
@@ -92,16 +98,25 @@ func (s *Store) CreateEnvironment(in model.EnvironmentInput) (model.Environment,
 		Name:        name,
 		Kind:        kind,
 		Description: strings.TrimSpace(in.Description),
+		Tags:        []string{},
 		CreatedAt:   time.Unix(now, 0),
 		UpdatedAt:   time.Unix(now, 0),
 	}
-	_, err = s.db.Exec(`INSERT INTO environments(id,name,kind,description,created_at,updated_at) VALUES(?,?,?,?,?,?)`,
+	tx, err := s.db.Begin()
+	if err != nil {
+		return e, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.Exec(`INSERT INTO environments(id,name,kind,description,created_at,updated_at) VALUES(?,?,?,?,?,?)`,
 		e.ID, e.Name, e.Kind, e.Description, now, now)
 	if err != nil {
 		return e, err
 	}
-	tags, err := s.replaceEnvTags(e.ID, in.Tags)
+	tags, err := replaceEnvTagsTx(tx, e.ID, in.Tags)
 	if err != nil {
+		return e, err
+	}
+	if err := tx.Commit(); err != nil {
 		return e, err
 	}
 	e.Tags = tags
@@ -206,6 +221,22 @@ func normalizeTagName(name string) (string, error) {
 }
 
 func (s *Store) replaceEnvTags(envID string, names []string) ([]string, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	out, err := replaceEnvTagsTx(tx, envID, names)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func replaceEnvTagsTx(tx *sql.Tx, envID string, names []string) ([]string, error) {
 	seen := map[string]struct{}{}
 	var clean []string
 	for _, n := range names {
@@ -223,17 +254,12 @@ func (s *Store) replaceEnvTags(envID string, names []string) ([]string, error) {
 		}
 		clean = append(clean, n)
 	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM environment_tags WHERE env_id=?`, envID); err != nil {
 		return nil, err
 	}
 	out := make([]string, 0, len(clean))
 	for _, n := range clean {
-		tagID, err := s.ensureTagTx(tx, n)
+		tagID, err := ensureTagTx(tx, n)
 		if err != nil {
 			return nil, err
 		}
@@ -247,13 +273,10 @@ func (s *Store) replaceEnvTags(envID string, names []string) ([]string, error) {
 		}
 		out = append(out, canonical)
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
 	return out, nil
 }
 
-func (s *Store) ensureTagTx(tx *sql.Tx, name string) (string, error) {
+func ensureTagTx(tx *sql.Tx, name string) (string, error) {
 	name, err := normalizeTagName(name)
 	if err != nil {
 		return "", err

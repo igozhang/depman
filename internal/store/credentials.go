@@ -79,6 +79,9 @@ func (s *Store) CreateCredential(in model.CredentialInput) (model.Credential, er
 	default:
 		return model.Credential{}, fmtError("类型须为 git/harbor/ssh/api")
 	}
+	if in.Port < 0 {
+		return model.Credential{}, fmtError("端口不能为负数")
+	}
 	if _, err := s.GetEnvironment(in.EnvID); err != nil {
 		return model.Credential{}, err
 	}
@@ -115,14 +118,24 @@ func (s *Store) UpdateCredential(id string, in model.CredentialInput) (model.Cre
 		cur.Name = n
 	}
 	if t := strings.ToLower(strings.TrimSpace(in.Type)); t != "" {
-		cur.Type = t
+		switch t {
+		case "git", "harbor", "ssh", "api":
+			cur.Type = t
+		default:
+			return cur, fmtError("类型须为 git/harbor/ssh/api")
+		}
 	}
 	if in.EnvID != "" {
+		if _, err := s.GetEnvironment(in.EnvID); err != nil {
+			return cur, err
+		}
 		cur.EnvID = in.EnvID
 	}
 	cur.Host = strings.TrimSpace(in.Host)
-	if in.Port > 0 {
-		cur.Port = in.Port
+	// CredentialInput.port 始终随请求带上；允许显式改为 0（协议默认）
+	cur.Port = in.Port
+	if cur.Port < 0 {
+		return cur, fmtError("端口不能为负数")
 	}
 	cur.Username = strings.TrimSpace(in.Username)
 	cur.Extra = strings.TrimSpace(in.Extra)
