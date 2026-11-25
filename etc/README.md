@@ -8,5 +8,6 @@
 
 写操作 igokey 活跃密钥在 `<data_dir>/igokey-active.json`（不在 etc）。
 凭据加密密钥在 `<data_dir>/secret.key`。
+内容缓存默认在 `<data_dir>/cache`（可用 `cache_dir` / `DEPMAN_CACHE_DIR` 覆盖；按内容 key 跨环境复用，≥1GiB TTL 7 天，其余 30 天）。
 
 容器部署时通常将 `DEPMAN_ETC_DIR` 指到 PVC 上的 `/data/etc`。

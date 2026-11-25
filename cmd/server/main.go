@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"depman/internal/api"
+	"depman/internal/appconn"
 	"depman/internal/auth"
 	"depman/internal/config"
 	"depman/internal/deploy"
@@ -38,7 +39,35 @@ func main() {
 	authSvc := auth.New(cfg.DataDir)
 	authSvc.SetScopedChecker(st)
 
+	cacheStore, err := appconn.OpenCache(cfg.CacheDir)
+	if err != nil {
+		log.Fatalf("open cache: %v", err)
+	}
+	runCacheGC := func() {
+		if n, freed, err := cacheStore.GC(context.Background(), time.Time{}); err != nil {
+			log.Printf("cache gc: %v", err)
+		} else if n > 0 {
+			log.Printf("cache gc: removed %d objects, freed %d bytes", n, freed)
+		}
+	}
+	runCacheGC()
+	cacheGCStop := make(chan struct{})
+	go func() {
+		t := time.NewTicker(6 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				runCacheGC()
+			case <-cacheGCStop:
+				return
+			}
+		}
+	}()
+	defer close(cacheGCStop)
+
 	runner := &deploy.Runner{Store: st}
+	log.Printf("cache ready at %s", cacheStore.Root())
 
 	var webFS fs.FS
 	sub, err := fs.Sub(webEmbed, "webdist")
@@ -53,6 +82,7 @@ func main() {
 		Store:   st,
 		Auth:    authSvc,
 		Deploy:  runner,
+		Cache:   cacheStore,
 		WebFS:   webFS,
 		Version: version,
 		UI:      api.UIConfig{EtcDir: cfg.EtcDir},

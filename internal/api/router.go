@@ -12,6 +12,7 @@ import (
 	"depman/internal/api/respond"
 	"depman/internal/api/write"
 	"depman/internal/auth"
+	"depman/internal/cache"
 	"depman/internal/config"
 	"depman/internal/deploy"
 	"depman/internal/store"
@@ -25,6 +26,7 @@ type Deps struct {
 	Store   *store.Store
 	Auth    *auth.Service
 	Deploy  *deploy.Runner
+	Cache   *cache.DiskStore
 	WebFS   fs.FS
 	Version string
 	UI      UIConfig
@@ -38,7 +40,7 @@ func NewRouter(d Deps) *gin.Engine {
 	}
 
 	rh := &read.Handler{Store: d.Store, Auth: d.Auth}
-	wh := &write.Handler{Store: d.Store, Runner: d.Deploy, Auth: d.Auth}
+	wh := &write.Handler{Store: d.Store, Runner: d.Deploy, Auth: d.Auth, Cache: d.Cache}
 
 	r.GET("/api/health", func(c *gin.Context) {
 		if d.Store != nil {
@@ -123,6 +125,15 @@ func NewRouter(d Deps) *gin.Engine {
 
 		writeG.POST("/deploy", wh.Deploy)
 		writeG.POST("/ssh/test", wh.TestSSH)
+		writeG.POST("/connectors/ping", wh.PingConnector)
+		writeG.POST("/connectors/git/fetch", wh.GitFetch)
+		writeG.POST("/connectors/registry/pull", wh.RegistryPull)
+		writeG.POST("/connectors/registry/push", wh.RegistryPush)
+		writeG.POST("/connectors/cluster/list", wh.ClusterList)
+		writeG.POST("/connectors/cluster/namespaces", wh.ClusterNamespaces)
+		writeG.POST("/connectors/cluster/workloads", wh.ClusterWorkloads)
+		writeG.POST("/connectors/cluster/scale", wh.ClusterScale)
+		writeG.POST("/connectors/cluster/restart", wh.ClusterRestart)
 
 		writeG.POST("/scoped-keys", wh.CreateScopedKey)
 		writeG.GET("/scoped-keys/:id/plain", wh.CopyScopedKey)

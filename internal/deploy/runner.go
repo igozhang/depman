@@ -1,12 +1,12 @@
 package deploy
 
 import (
+	"context"
 	"log"
-	"strings"
 	"time"
 
+	connssh "depman/internal/connector/ssh"
 	"depman/internal/model"
-	"depman/internal/sshx"
 	"depman/internal/store"
 )
 
@@ -42,19 +42,8 @@ func (r *Runner) run(jobID string) {
 	_ = r.Store.UpdateDeployJob(jobID, "running", "", "", &start, nil)
 	_ = r.Store.MarkProjectEnvDeploy(pe.ID, "running", start)
 
-	target := sshx.Target{
-		Host:     cred.Host,
-		Port:     cred.Port,
-		Username: cred.Username,
-	}
-	// Heuristic: PEM private key vs password
-	if strings.Contains(secret, "BEGIN") && strings.Contains(secret, "PRIVATE KEY") {
-		target.PrivateKey = secret
-	} else {
-		target.Password = secret
-	}
-
-	out, err := sshx.RunScript(target, pe.WorkDir, pe.Script, 15*time.Minute)
+	cli := connssh.New(connssh.ConfigFromSecret(cred.Host, cred.Port, cred.Username, secret))
+	out, err := cli.Run(context.Background(), pe.WorkDir, pe.Script, 15*time.Minute)
 	fin := time.Now()
 	if err != nil {
 		_ = r.Store.UpdateDeployJob(jobID, "failed", out, err.Error(), &start, &fin)

@@ -9,7 +9,7 @@ CICD 自动化发布与运维台：按项目管理发布、按环境管理凭据
 - **depman**：项目胶囊首页；主题页按环境 SSH 跑脚本发布
 - **环境**：按环境管理 Git / Harbor / SSH / API 凭据；密钥 AES 落库，默认不明文
 - **交互**：SSH 连通测试（Web 终端后续）
-- **传输**：Harbor 镜像互传、SSH 上传下载（后续）
+- **连接器**：Git 拉取、Harbor/OCI 镜像 pull/push、Rancher 集群读写（凭据按环境）；内容缓存跨环境按 key 复用
 - **登录**：居中输入 key；超管 key 或超管签发的**项目管理 key**（绑定项目/环境）
 - 单二进制 + SQLite；可选嵌入前端
 
@@ -72,7 +72,10 @@ internal/auth/        igokey + 会话 + 作用域校验
 internal/api/read|write
 internal/store/       SQLite
 internal/cred/        密钥加密
-internal/sshx/        SSH 执行
+internal/cache/       通用内容缓存（按 key，跨环境复用；TTL GC）
+internal/connector/   可迁移连接器：registry / git / ssh / k8sapi+rancher
+internal/appconn/     depman 适配（凭据 → connector.Config）
+internal/sshx/        SSH 底层（由 connector/ssh 使用）
 internal/deploy/      发布任务
 web/                  Vue3
 etc/                  depman.conf、可选 icon

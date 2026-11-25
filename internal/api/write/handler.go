@@ -1,16 +1,19 @@
 package write
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"depman/internal/api/middleware"
 	"depman/internal/api/respond"
+	"depman/internal/appconn"
 	"depman/internal/auth"
+	"depman/internal/cache"
 	"depman/internal/deploy"
 	"depman/internal/model"
-	"depman/internal/sshx"
 	"depman/internal/store"
 )
 
@@ -18,6 +21,7 @@ type Handler struct {
 	Store  *store.Store
 	Runner *deploy.Runner
 	Auth   *auth.Service
+	Cache  *cache.DiskStore
 }
 
 func (h *Handler) CreateProject(c *gin.Context) {
@@ -285,6 +289,15 @@ func (h *Handler) Deploy(c *gin.Context) {
 }
 
 func (h *Handler) TestSSH(c *gin.Context) {
+	h.pingCred(c, "ssh")
+}
+
+// PingConnector probes git / harbor / ssh / api(rancher) credentials.
+func (h *Handler) PingConnector(c *gin.Context) {
+	h.pingCred(c, "")
+}
+
+func (h *Handler) pingCred(c *gin.Context, requireType string) {
 	info := middleware.Session(c)
 	var body struct {
 		CredID string `json:"credId"`
@@ -302,29 +315,31 @@ func (h *Handler) TestSSH(c *gin.Context) {
 		respond.Internal(c, err.Error())
 		return
 	}
-	if cred.Type != "ssh" {
-		respond.BadRequest(c, "仅 ssh 凭据可测试连通")
+	if requireType != "" && cred.Type != requireType {
+		respond.BadRequest(c, "仅 "+requireType+" 凭据可测试连通")
 		return
 	}
 	if strings.TrimSpace(cred.Host) == "" {
-		respond.BadRequest(c, "主机不能为空")
+		respond.BadRequest(c, "主机/地址不能为空")
 		return
 	}
 	if !auth.CanAccessEnv(info, cred.EnvID) {
 		respond.Forbidden(c, "无权使用该凭据")
 		return
 	}
-	t := sshx.Target{Host: cred.Host, Port: cred.Port, Username: cred.Username}
-	if strings.Contains(secret, "BEGIN") && strings.Contains(secret, "PRIVATE KEY") {
-		t.PrivateKey = secret
-	} else {
-		t.Password = secret
-	}
-	if err := sshx.TestConnect(t); err != nil {
-		respond.OK(c, gin.H{"ok": false, "error": err.Error()})
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	res := appconn.PingCredential(ctx, cred, secret)
+	if requireType == "ssh" {
+		// keep legacy shape for existing UI
+		if !res.OK {
+			respond.OK(c, gin.H{"ok": false, "error": res.Message})
+			return
+		}
+		respond.OK(c, gin.H{"ok": true})
 		return
 	}
-	respond.OK(c, gin.H{"ok": true})
+	respond.OK(c, res)
 }
 
 func (h *Handler) CreateScopedKey(c *gin.Context) {

@@ -9,11 +9,12 @@ import (
 )
 
 type Config struct {
-	Addr    string
-	DBPath  string
-	DataDir string
-	EtcDir  string
-	Title   string
+	Addr     string
+	DBPath   string
+	DataDir  string
+	CacheDir string
+	EtcDir   string
+	Title    string
 }
 
 type UISettings struct {
@@ -35,14 +36,17 @@ title=depman
 # =============================================================================
 # 格式：key=value，# 开头为注释。环境变量 DEPMAN_* 优先级更高。
 #
-# | 配置项   | 环境变量        | 默认                 | 说明 |
-# |----------|-----------------|----------------------|------|
-# | addr     | DEPMAN_ADDR     | :8080                | HTTP 监听 |
-# | data_dir | DEPMAN_DATA_DIR | ./data               | 数据目录 |
-# | db_path  | DEPMAN_DB_PATH  | <data_dir>/depman.db | SQLite 路径，可省略 |
-# | title    | （仅 conf）     | depman               | 页眉品牌名；兼浏览器标题 |
-# | icon     | （仅 conf）     | （自动探测）         | etc 下站点 icon 文件名 |
-# | banner   | （仅 conf）     | （自动探测）         | etc 下 banner 图片 |
+# | 配置项    | 环境变量         | 默认                    | 说明 |
+# |-----------|------------------|-------------------------|------|
+# | addr      | DEPMAN_ADDR      | :8080                   | HTTP 监听 |
+# | data_dir  | DEPMAN_DATA_DIR  | ./data                  | 数据目录 |
+# | db_path   | DEPMAN_DB_PATH   | <data_dir>/depman.db    | SQLite 路径，可省略 |
+# | cache_dir | DEPMAN_CACHE_DIR | <data_dir>/cache        | 内容缓存（镜像/git 等，跨环境按 key 复用） |
+# | title     | （仅 conf）      | depman                  | 页眉品牌名；兼浏览器标题 |
+# | icon      | （仅 conf）      | （自动探测）            | etc 下站点 icon 文件名 |
+# | banner    | （仅 conf）      | （自动探测）            | etc 下 banner 图片 |
+#
+# 缓存 TTL：单对象 ≥1GiB 为 7 天，其余 30 天（按 last_access）；启动与定时 GC。
 #
 # 页眉 slogan 固定为 practice makes perfect；双击可复制超管 igokey。
 #
@@ -65,15 +69,17 @@ func Load() Config {
 
 	dataDir := firstNonEmpty(os.Getenv("DEPMAN_DATA_DIR"), fileVals["data_dir"], "./data")
 	dbPath := firstNonEmpty(os.Getenv("DEPMAN_DB_PATH"), fileVals["db_path"], filepath.Join(dataDir, "depman.db"))
+	cacheDir := firstNonEmpty(os.Getenv("DEPMAN_CACHE_DIR"), fileVals["cache_dir"], filepath.Join(dataDir, "cache"))
 	addr := firstNonEmpty(os.Getenv("DEPMAN_ADDR"), fileVals["addr"], ":8080")
 	title := firstNonEmpty(fileVals["title"], defaultTitle)
 
 	return Config{
-		Addr:    addr,
-		DBPath:  dbPath,
-		DataDir: dataDir,
-		EtcDir:  etcDir,
-		Title:   title,
+		Addr:     addr,
+		DBPath:   dbPath,
+		DataDir:  dataDir,
+		CacheDir: cacheDir,
+		EtcDir:   etcDir,
+		Title:    title,
 	}
 }
 
