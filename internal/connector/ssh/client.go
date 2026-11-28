@@ -69,7 +69,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	return sshx.TestConnect(c.Cfg.target(), timeout)
 }
 
-// Run executes script via bash -lc, optionally after cd into workDir.
+// Run executes script via clean bash --noprofile --norc -c, optionally after cd into workDir.
 func (c *Client) Run(ctx context.Context, workDir, script string, timeout time.Duration) (string, error) {
 	if err := c.Cfg.validate(); err != nil {
 		return "", err

@@ -74,7 +74,9 @@ func TestConnect(t Target, timeout time.Duration) error {
 	return sess.Run("true")
 }
 
-// RunScript executes script (bash -lc) optionally in workDir; returns combined output.
+// RunScript executes script with a clean non-login bash (no profile/rc), optionally in workDir.
+// Using bash -lc previously sourced login profiles, which can print unrelated paths or even
+// exit before the deploy script runs — matching symptoms like a lone "/etc/..." line.
 func RunScript(t Target, workDir, script string, timeout time.Duration) (string, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Minute
@@ -102,9 +104,11 @@ func RunScript(t Target, workDir, script string, timeout time.Duration) (string,
 	if wd := strings.TrimSpace(workDir); wd != "" {
 		cmd = "cd " + shellQuote(wd) + " && " + cmd
 	}
+	// --noprofile --norc: do not load /etc/profile, ~/.bash_profile, ~/.bashrc, etc.
+	remote := "bash --noprofile --norc -c " + shellQuote(cmd)
 	done := make(chan error, 1)
 	go func() {
-		done <- sess.Run("bash -lc " + shellQuote(cmd))
+		done <- sess.Run(remote)
 	}()
 	select {
 	case err := <-done:

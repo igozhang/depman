@@ -2,7 +2,9 @@ package deploy
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	connssh "depman/internal/connector/ssh"
@@ -45,6 +47,17 @@ func (r *Runner) run(jobID string) {
 	cli := connssh.New(connssh.ConfigFromSecret(cred.Host, cred.Port, cred.Username, secret))
 	out, err := cli.Run(context.Background(), pe.WorkDir, pe.Script, 15*time.Minute)
 	fin := time.Now()
+	port := cred.Port
+	if port <= 0 {
+		port = 22
+	}
+	user := strings.TrimSpace(cred.Username)
+	if user == "" {
+		user = "root"
+	}
+	header := fmt.Sprintf("[depman] %s@%s:%d workDir=%q\n[depman] script:\n%s\n----------\n",
+		user, cred.Host, port, pe.WorkDir, pe.Script)
+	out = header + out
 	if err != nil {
 		_ = r.Store.UpdateDeployJob(jobID, "failed", out, err.Error(), &start, &fin)
 		_ = r.Store.MarkProjectEnvDeploy(pe.ID, "failed", fin)
