@@ -56,9 +56,12 @@ func dial(t Target, timeout time.Duration) (*ssh.Client, error) {
 	return ssh.Dial("tcp", addr, cfg)
 }
 
-// TestConnect dials and runs a trivial command.
-func TestConnect(t Target) error {
-	cli, err := dial(t, 10*time.Second)
+// TestConnect dials and runs a trivial command. timeout <= 0 defaults to 5s.
+func TestConnect(t Target, timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	cli, err := dial(t, timeout)
 	if err != nil {
 		return err
 	}

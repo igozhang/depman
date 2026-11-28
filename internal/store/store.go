@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  parent_id TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -141,6 +142,9 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON deploy_jobs(created_at DESC);
 	}
 	// 兼容旧库：明文加密列（供超管复制）；已存在则忽略
 	_, _ = s.db.Exec(`ALTER TABLE scoped_keys ADD COLUMN plain_enc TEXT NOT NULL DEFAULT ''`)
+	// 兼容旧库：项目一级子任务
+	_, _ = s.db.Exec(`ALTER TABLE projects ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_projects_parent ON projects(parent_id)`)
 	return nil
 }
 

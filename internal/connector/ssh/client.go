@@ -57,7 +57,16 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return sshx.TestConnect(c.Cfg.target())
+	timeout := c.Cfg.Timeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		if rem := time.Until(dl); rem > 0 && rem < timeout {
+			timeout = rem
+		}
+	}
+	return sshx.TestConnect(c.Cfg.target(), timeout)
 }
 
 // Run executes script via bash -lc, optionally after cd into workDir.

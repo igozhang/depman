@@ -72,6 +72,9 @@ export const writeApi = {
   testSSH(credId) {
     return http.post('/write/ssh/test', { credId })
   },
+  pingCredential(credId) {
+    return http.post('/write/connectors/ping', { credId }, { timeout: 8000 })
+  },
   createScopedKey(body) {
     return http.post('/write/scoped-keys', body)
   },

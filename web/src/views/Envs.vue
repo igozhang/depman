@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { readApi, writeApi } from '../api'
 import { canWrite, isSuper } from '../stores/opsAuth'
 
@@ -14,9 +14,13 @@ const showEnv = ref(false)
 const showCred = ref(false)
 const reveal = ref(false)
 const editingId = ref('')
+const editingCredId = ref('')
 const tagDraft = ref('')
 const envForm = ref({ name: '', kind: 'dev', description: '', tags: [] })
 const credForm = ref(emptyCredForm())
+/** @type {import('vue').Ref<Record<string, { ok: boolean|null, msg: string, busy?: boolean }>>} */
+const testStatus = ref({})
+let skipPortReset = false
 
 function emptyCredForm() {
   return {
@@ -49,6 +53,7 @@ function defaultPortForType(type) {
 watch(
   () => credForm.value.type,
   (type) => {
+    if (skipPortReset) return
     credForm.value.port = defaultPortForType(type)
   }
 )
@@ -71,6 +76,7 @@ const unusedTags = computed(() => {
 })
 
 const envDrawerTitle = computed(() => (editingId.value ? '编辑环境' : '新建环境'))
+const credDrawerTitle = computed(() => (editingCredId.value ? '编辑凭据' : '添加凭据'))
 
 function credsOf(envId) {
   return creds.value.filter((c) => c.envId === envId)
@@ -101,8 +107,32 @@ async function toggleReveal() {
 }
 
 function openCreateCred() {
+  editingCredId.value = ''
+  skipPortReset = true
   credForm.value = emptyCredForm()
   showCred.value = true
+  nextTick(() => {
+    skipPortReset = false
+  })
+}
+
+function openEditCred(c) {
+  editingCredId.value = c.id
+  skipPortReset = true
+  credForm.value = {
+    envId: c.envId || '',
+    name: c.name || '',
+    type: c.type || 'ssh',
+    host: c.host || '',
+    port: c.port ?? defaultPortForType(c.type || 'ssh'),
+    username: c.username || '',
+    secret: '',
+    extra: c.extra || ''
+  }
+  showCred.value = true
+  nextTick(() => {
+    skipPortReset = false
+  })
 }
 
 function openCreateEnv() {
@@ -196,8 +226,14 @@ async function removeEnv(id) {
 async function saveCred() {
   try {
     const body = { ...credForm.value, port: Number(credForm.value.port) || 0 }
-    await writeApi.createCredential(body)
+    if (editingCredId.value) {
+      if (!body.secret) delete body.secret
+      await writeApi.updateCredential(editingCredId.value, body)
+    } else {
+      await writeApi.createCredential(body)
+    }
     showCred.value = false
+    editingCredId.value = ''
     credForm.value = emptyCredForm()
     await load()
   } catch (e) {
@@ -209,18 +245,36 @@ async function removeCred(id) {
   if (!confirm('删除凭据？')) return
   try {
     await writeApi.deleteCredential(id)
+    const next = { ...testStatus.value }
+    delete next[id]
+    testStatus.value = next
     await load()
   } catch (e) {
     err.value = e?.message || '删除失败'
   }
 }
 
-async function testSSH(id) {
+async function testCred(c) {
+  if (!canWrite.value) return
+  testStatus.value = {
+    ...testStatus.value,
+    [c.id]: { ok: null, msg: '测试中…', busy: true }
+  }
   try {
-    const r = await writeApi.testSSH(id)
-    alert(r?.ok ? '连通成功' : `失败：${r?.error || ''}`)
+    const r = await writeApi.pingCredential(c.id)
+    const ok = !!r?.ok
+    let msg = ok ? (r?.stub ? '配置可用（未探测远端）' : '连通成功') : r?.message || r?.error || '失败'
+    testStatus.value = {
+      ...testStatus.value,
+      [c.id]: { ok, msg, busy: false }
+    }
   } catch (e) {
-    err.value = e?.message || '测试失败'
+    const raw = e?.message || '测试失败'
+    const timedOut = /timeout|deadline|context canceled|超时/i.test(raw)
+    testStatus.value = {
+      ...testStatus.value,
+      [c.id]: { ok: false, msg: timedOut ? '超时（5s）' : raw, busy: false }
+    }
   }
 }
 
@@ -277,6 +331,7 @@ onMounted(load)
             <th>主机</th>
             <th>用户</th>
             <th>密钥</th>
+            <th>连通</th>
             <th></th>
           </tr>
         </thead>
@@ -290,13 +345,32 @@ onMounted(load)
               <code v-if="reveal && c.secret">{{ c.secret }}</code>
               <span v-else>{{ c.secretSet ? '••••••••' : '（无）' }}</span>
             </td>
+            <td>
+              <span
+                v-if="testStatus[c.id]"
+                class="ops-msg"
+                style="margin:0;display:inline"
+                :class="{
+                  'is-ok': testStatus[c.id].ok === true,
+                  'is-err': testStatus[c.id].ok === false
+                }"
+              >{{ testStatus[c.id].msg }}</span>
+              <span v-else class="muted">—</span>
+            </td>
             <td class="actions">
-              <button v-if="canWrite && c.type === 'ssh'" type="button" class="btn btn-sm" @click="testSSH(c.id)">测试</button>
+              <button
+                v-if="canWrite"
+                type="button"
+                class="btn btn-sm"
+                :disabled="testStatus[c.id]?.busy"
+                @click="testCred(c)"
+              >测试</button>
+              <button v-if="isSuper" type="button" class="btn btn-sm" @click="openEditCred(c)">编辑</button>
               <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" @click="removeCred(c.id)">删</button>
             </td>
           </tr>
           <tr v-if="!credsOf(env.id).length">
-            <td colspan="6" class="muted">无凭据</td>
+            <td colspan="7" class="muted">无凭据</td>
           </tr>
         </tbody>
       </table>
@@ -362,7 +436,7 @@ onMounted(load)
     <div v-if="showCred" class="drawer-mask" @click.self="showCred = false">
       <div class="drawer">
         <div class="drawer-head">
-          <h2 style="margin:0;font-size:1.1rem">添加凭据</h2>
+          <h2 style="margin:0;font-size:1.1rem">{{ credDrawerTitle }}</h2>
           <button type="button" class="btn btn-sm" @click="showCred = false">关闭</button>
         </div>
         <div class="form-row">
@@ -411,7 +485,11 @@ onMounted(load)
         </div>
         <div class="form-row">
           <label>密码 / 私钥 / Token</label>
-          <textarea v-model="credForm.secret" rows="4" placeholder="不明文列表展示；含 PRIVATE KEY 则按私钥认证" />
+          <textarea
+            v-model="credForm.secret"
+            rows="4"
+            :placeholder="editingCredId ? '留空则保留原密钥；填写则覆盖' : '不明文列表展示；含 PRIVATE KEY 则按私钥认证'"
+          />
         </div>
         <div class="actions">
           <button type="button" class="btn btn-primary" @click="saveCred">保存</button>

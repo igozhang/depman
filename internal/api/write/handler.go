@@ -217,12 +217,12 @@ func (h *Handler) UpsertProjectEnv(c *gin.Context) {
 		respond.BadRequest(c, "bad json")
 		return
 	}
-	if !auth.CanAccessProject(info, in.ProjectID) || !auth.CanAccessEnv(info, in.EnvID) {
-		respond.Forbidden(c, "无权操作该项目/环境")
-		return
-	}
 	if !auth.IsSuper(info) {
 		respond.Forbidden(c, "绑定发布配置需超管")
+		return
+	}
+	if !auth.CanAccessEnv(info, in.EnvID) {
+		respond.Forbidden(c, "无权操作该环境")
 		return
 	}
 	pe, err := h.Store.UpsertProjectEnv(in)
@@ -268,7 +268,11 @@ func (h *Handler) Deploy(c *gin.Context) {
 		respond.Internal(c, err.Error())
 		return
 	}
-	if !auth.CanAccessProject(info, pe.ProjectID) || !auth.CanAccessEnv(info, pe.EnvID) {
+	var parentID string
+	if proj, err := h.Store.GetProject(pe.ProjectID); err == nil {
+		parentID = proj.ParentID
+	}
+	if !auth.CanAccessProjectOrParent(info, pe.ProjectID, parentID) || !auth.CanAccessEnv(info, pe.EnvID) {
 		respond.Forbidden(c, "无权发布该项目/环境")
 		return
 	}
@@ -327,9 +331,12 @@ func (h *Handler) pingCred(c *gin.Context, requireType string) {
 		respond.Forbidden(c, "无权使用该凭据")
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 	defer cancel()
 	res := appconn.PingCredential(ctx, cred, secret)
+	if !res.OK && ctx.Err() != nil {
+		res.Message = "超时（5s）"
+	}
 	if requireType == "ssh" {
 		// keep legacy shape for existing UI
 		if !res.OK {

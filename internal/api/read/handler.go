@@ -35,7 +35,7 @@ func (h *Handler) ListCapsules(c *gin.Context) {
 	if ok && info.Role == model.RoleManager {
 		filtered := items[:0]
 		for _, it := range items {
-			if auth.CanAccessProject(info, it.ID) {
+			if auth.CanAccessProjectOrParent(info, it.ID, it.ParentID) {
 				filtered = append(filtered, it)
 			}
 		}
@@ -55,7 +55,7 @@ func (h *Handler) GetProject(c *gin.Context) {
 		return
 	}
 	info, authed := h.optionalSession(c)
-	if authed && !auth.CanAccessProject(info, p.ID) {
+	if authed && !auth.CanAccessProjectOrParent(info, p.ID, p.ParentID) {
 		respond.Forbidden(c, "无权访问该项目")
 		return
 	}
@@ -129,6 +129,18 @@ func (h *Handler) ListCredentials(c *gin.Context) {
 	respond.OK(c, gin.H{"items": items})
 }
 
+func (h *Handler) projectParentMap() map[string]string {
+	projects, err := h.Store.ListProjects()
+	if err != nil {
+		return nil
+	}
+	m := make(map[string]string, len(projects))
+	for _, p := range projects {
+		m[p.ID] = p.ParentID
+	}
+	return m
+}
+
 func (h *Handler) ListJobs(c *gin.Context) {
 	items, err := h.Store.ListDeployJobs(50)
 	if err != nil {
@@ -136,17 +148,18 @@ func (h *Handler) ListJobs(c *gin.Context) {
 		return
 	}
 	info, ok := h.optionalSession(c)
+	parents := h.projectParentMap()
 	if ok && info.Role == model.RoleManager {
 		filtered := items[:0]
 		for _, it := range items {
-			if auth.CanAccessProject(info, it.ProjectID) && auth.CanAccessEnv(info, it.EnvID) {
+			if auth.CanAccessProjectOrParent(info, it.ProjectID, parents[it.ProjectID]) && auth.CanAccessEnv(info, it.EnvID) {
 				filtered = append(filtered, it)
 			}
 		}
 		items = filtered
 	}
 	for i := range items {
-		sanitizeJob(&items[i], info, ok)
+		sanitizeJob(&items[i], info, ok, parents)
 	}
 	respond.OK(c, gin.H{"items": items})
 }
@@ -162,21 +175,26 @@ func (h *Handler) GetJob(c *gin.Context) {
 		return
 	}
 	info, ok := h.optionalSession(c)
-	if ok && (!auth.CanAccessProject(info, j.ProjectID) || !auth.CanAccessEnv(info, j.EnvID)) {
+	parents := h.projectParentMap()
+	if ok && (!auth.CanAccessProjectOrParent(info, j.ProjectID, parents[j.ProjectID]) || !auth.CanAccessEnv(info, j.EnvID)) {
 		respond.Forbidden(c, "无权查看该任务")
 		return
 	}
-	sanitizeJob(&j, info, ok)
+	sanitizeJob(&j, info, ok, parents)
 	respond.OK(c, j)
 }
 
 // sanitizeJob：无权限会话只保留状态摘要，避免只读面泄露脚本与命令输出。
-func sanitizeJob(j *model.DeployJob, info model.SessionInfo, authed bool) {
+func sanitizeJob(j *model.DeployJob, info model.SessionInfo, authed bool, parents map[string]string) {
 	if authed && auth.IsSuper(info) {
 		return
 	}
+	parentID := ""
+	if parents != nil {
+		parentID = parents[j.ProjectID]
+	}
 	if authed && info.Role == model.RoleManager &&
-		auth.CanAccessProject(info, j.ProjectID) && auth.CanAccessEnv(info, j.EnvID) {
+		auth.CanAccessProjectOrParent(info, j.ProjectID, parentID) && auth.CanAccessEnv(info, j.EnvID) {
 		return
 	}
 	j.LogTail = ""

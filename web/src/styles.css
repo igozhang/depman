@@ -351,6 +351,38 @@ input, select, textarea {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.85rem;
 }
+.project-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.project-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.project-group-head {
+  align-items: stretch;
+  gap: 0.75rem;
+}
+.project-group-head .project-capsule-root {
+  flex: 1;
+  min-width: 0;
+}
+.project-group-head .actions {
+  flex-shrink: 0;
+  align-self: center;
+}
+.project-children {
+  margin-left: 1rem;
+  padding-left: 0.85rem;
+  border-left: 2px solid var(--line);
+}
+.project-children-empty {
+  margin: 0 0 0 1rem;
+  padding-left: 0.85rem;
+  font-size: 13px;
+}
 .project-capsule {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -362,9 +394,43 @@ input, select, textarea {
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+.project-capsule-child {
+  background: var(--surface);
+}
 .project-capsule:hover {
   border-color: var(--accent);
   box-shadow: 0 1px 0 rgba(61, 107, 74, 0.12);
+}
+/* 环境绑定卡：同行等高，标题顶齐、操作底齐 */
+.capsule-grid-bind {
+  align-items: stretch;
+}
+.project-capsule-bind {
+  cursor: default;
+  height: 100%;
+  min-height: 10.5rem;
+}
+.project-capsule-bind .capsule-title {
+  flex-shrink: 0;
+}
+.project-capsule-bind .capsule-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.project-capsule-bind .capsule-script {
+  margin: 0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 4.5em;
+  overflow: hidden;
+}
+.project-capsule-bind .capsule-actions {
+  flex-shrink: 0;
+  margin-top: auto;
+  align-items: center;
 }
 .capsule-title {
   margin: 0;

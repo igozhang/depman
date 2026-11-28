@@ -18,6 +18,7 @@ type Project struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	ParentID    string    `json:"parentId,omitempty"` // 一级子项目/子任务挂在根项目下；子级不可再嵌套
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -25,6 +26,7 @@ type Project struct {
 type ProjectInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	ParentID    string `json:"parentId,omitempty"`
 }
 
 type Environment struct {
