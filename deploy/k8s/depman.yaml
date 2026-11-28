@@ -25,6 +25,7 @@ metadata:
     app: depman
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
   # 先起新且 Ready 后再下旧，避免空窗；RWO 靠同节点亲和（见 affinity）
   strategy:
     type: RollingUpdate

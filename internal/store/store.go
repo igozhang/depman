@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -51,7 +50,6 @@ func (s *Store) Ping() error {
 }
 
 func (s *Store) migrate() error {
-	// Tables only — indexes that depend on newer columns come after schema ensure.
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
@@ -148,95 +146,12 @@ CREATE TABLE IF NOT EXISTS host_resolves (
 	if err != nil {
 		return err
 	}
-	if err := s.ensureCredentialSchema(); err != nil {
-		return err
-	}
-	if err := s.ensureScopedKeysSchema(); err != nil {
-		return err
-	}
 	_, err = s.db.Exec(`
 CREATE INDEX IF NOT EXISTS idx_cred_env ON credentials(env_id);
 CREATE INDEX IF NOT EXISTS idx_cred_auth ON credentials(auth_cred_id);
 CREATE INDEX IF NOT EXISTS idx_pe_project ON project_envs(project_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON deploy_jobs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_pe_created ON deploy_jobs(project_env_id, created_at DESC);
-`)
-	return err
-}
-
-func (s *Store) tableHasColumn(table, column string) (bool, error) {
-	// pragma_table_info requires a literal table name; only call with fixed identifiers.
-	var q string
-	switch table {
-	case "credentials":
-		q = `SELECT COUNT(*) FROM pragma_table_info('credentials') WHERE name=?`
-	case "scoped_keys":
-		q = `SELECT COUNT(*) FROM pragma_table_info('scoped_keys') WHERE name=?`
-	default:
-		return false, fmtError("unknown table for schema check")
-	}
-	var n int
-	err := s.db.QueryRow(q, column).Scan(&n)
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-// ensureCredentialSchema rebuilds credentials when the table predates auth_cred_id (dev wipe).
-func (s *Store) ensureCredentialSchema() error {
-	ok, err := s.tableHasColumn("credentials", "auth_cred_id")
-	if err != nil {
-		return err
-	}
-	if ok {
-		return nil
-	}
-	log.Printf("store: credentials schema outdated, recreating table (data discarded)")
-	_, err = s.db.Exec(`
-DROP TABLE IF EXISTS credentials;
-CREATE TABLE credentials (
-  id TEXT PRIMARY KEY,
-  env_id TEXT NOT NULL DEFAULT '',
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,
-  host TEXT NOT NULL DEFAULT '',
-  port INTEGER NOT NULL DEFAULT 0,
-  username TEXT NOT NULL DEFAULT '',
-  secret_enc TEXT NOT NULL DEFAULT '',
-  extra TEXT NOT NULL DEFAULT '',
-  auth_cred_id TEXT NOT NULL DEFAULT '',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-`)
-	return err
-}
-
-// ensureScopedKeysSchema rebuilds scoped_keys when plain_enc is missing.
-func (s *Store) ensureScopedKeysSchema() error {
-	ok, err := s.tableHasColumn("scoped_keys", "plain_enc")
-	if err != nil {
-		return err
-	}
-	if ok {
-		return nil
-	}
-	log.Printf("store: scoped_keys schema outdated, recreating table (data discarded)")
-	_, err = s.db.Exec(`
-DROP TABLE IF EXISTS scoped_keys;
-CREATE TABLE scoped_keys (
-  id TEXT PRIMARY KEY,
-  label TEXT NOT NULL DEFAULT '',
-  key_hash TEXT NOT NULL UNIQUE,
-  key_hint TEXT NOT NULL DEFAULT '',
-  project_ids TEXT NOT NULL DEFAULT '[]',
-  env_ids TEXT NOT NULL DEFAULT '[]',
-  expires_at INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
-  created_by TEXT NOT NULL DEFAULT '',
-  plain_enc TEXT NOT NULL DEFAULT ''
-);
 `)
 	return err
 }
