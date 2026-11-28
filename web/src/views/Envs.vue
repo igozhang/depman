@@ -125,6 +125,21 @@ function credName(id) {
   return creds.value.find((c) => c.id === id)?.name || id
 }
 
+/** Show effective dial target when port is protocol-default (esp. git → https/443). */
+function formatCredEndpoint(c) {
+  const host = c?.host || ''
+  if (c?.port) return `${host}:${c.port}`
+  if (
+    c?.type === 'git' &&
+    host &&
+    !String(host).includes('://') &&
+    !String(host).startsWith('git@')
+  ) {
+    return `${host}（默认 https/443）`
+  }
+  return host
+}
+
 function emptyEnvForm() {
   return { name: '', kind: 'dev', description: '', tags: [] }
 }
@@ -492,7 +507,7 @@ onMounted(load)
           <tr v-for="c in sharedCreds" :key="c.id">
             <td>{{ c.name }}</td>
             <td>{{ c.type }}</td>
-            <td>{{ c.host }}{{ c.port ? ':' + c.port : '' }}</td>
+            <td>{{ formatCredEndpoint(c) }}</td>
             <td>{{ c.username || '—' }}</td>
             <td>
               <code v-if="reveal && c.secret">{{ c.secret }}</code>
@@ -562,7 +577,7 @@ onMounted(load)
           <tr v-for="c in credsOf(env.id)" :key="c.id">
             <td>{{ c.name }}</td>
             <td>{{ c.type }}</td>
-            <td>{{ c.host }}{{ c.port ? ':' + c.port : '' }}</td>
+            <td>{{ formatCredEndpoint(c) }}</td>
             <td>
               <template v-if="c.authCredId">引用 · {{ credName(c.authCredId) }}</template>
               <template v-else>{{ c.username || '—' }}</template>

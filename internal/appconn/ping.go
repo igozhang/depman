@@ -139,7 +139,25 @@ func pingTCPHost(ctx context.Context, remote string, port int) error {
 	if err != nil {
 		return err
 	}
-	return pingTCPAddr(ctx, host, p)
+	err = pingTCPAddr(ctx, host, p)
+	if err == nil {
+		return nil
+	}
+	// Default https/443 often fails on internal GitLab that only serves :80.
+	if p == 443 && isConnRefused(err) {
+		if e80 := pingTCPAddr(ctx, host, 80); e80 == nil {
+			return fmt.Errorf("%w: HTTPS :443 被拒绝，但 HTTP :80 可达；请将端口改为 80，或主机改为 http://%s", connector.ErrUnavailable, host)
+		}
+	}
+	return err
+}
+
+func isConnRefused(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "connection refused") || strings.Contains(msg, "actively refused")
 }
 
 // resolveHTTPDialTarget picks host:port for http(s) probes.

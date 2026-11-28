@@ -1,6 +1,9 @@
 package appconn
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestResolveHTTPDialTarget(t *testing.T) {
 	cases := []struct {
@@ -54,6 +57,15 @@ func TestResolveSSHDialTarget(t *testing.T) {
 		if host != tc.host || port != tc.want {
 			t.Fatalf("remote=%q → %s:%d want %s:%d", tc.remote, host, port, tc.host, tc.want)
 		}
+	}
+}
+
+func TestIsConnRefused(t *testing.T) {
+	if !isConnRefused(errors.New("dial tcp 1.2.3.4:443: connect: connection refused")) {
+		t.Fatal("expected refused")
+	}
+	if isConnRefused(errors.New("i/o timeout")) {
+		t.Fatal("timeout is not refused")
 	}
 }
 
