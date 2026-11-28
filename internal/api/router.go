@@ -101,6 +101,7 @@ func NewRouter(d Deps) *gin.Engine {
 		readG.GET("/environments", rh.ListEnvironments)
 		readG.GET("/tags", rh.ListTags)
 		readG.GET("/credentials", rh.ListCredentials)
+		readG.GET("/project-envs/:id/jobs", rh.ListProjectEnvJobs)
 		readG.GET("/jobs", rh.ListJobs)
 		readG.GET("/jobs/:id", rh.GetJob)
 		readG.GET("/scoped-keys", middleware.AuthWrite(d.Auth), middleware.RequireSuper(), rh.ListScopedKeys)

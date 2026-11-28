@@ -35,7 +35,7 @@ func (h *Handler) ListCapsules(c *gin.Context) {
 	if ok && info.Role == model.RoleManager {
 		filtered := items[:0]
 		for _, it := range items {
-			if auth.CanAccessProjectOrParent(info, it.ID, it.ParentID) {
+			if auth.CanAccessProject(info, it.ID) {
 				filtered = append(filtered, it)
 			}
 		}
@@ -55,7 +55,7 @@ func (h *Handler) GetProject(c *gin.Context) {
 		return
 	}
 	info, authed := h.optionalSession(c)
-	if authed && !auth.CanAccessProjectOrParent(info, p.ID, p.ParentID) {
+	if authed && !auth.CanAccessProject(info, p.ID) {
 		respond.Forbidden(c, "无权访问该项目")
 		return
 	}
@@ -129,16 +129,35 @@ func (h *Handler) ListCredentials(c *gin.Context) {
 	respond.OK(c, gin.H{"items": items})
 }
 
-func (h *Handler) projectParentMap() map[string]string {
-	projects, err := h.Store.ListProjects()
+func (h *Handler) ListProjectEnvJobs(c *gin.Context) {
+	pe, err := h.Store.GetProjectEnv(c.Param("id"))
+	if err == store.ErrNotFound {
+		respond.NotFound(c, "发布任务不存在")
+		return
+	}
 	if err != nil {
-		return nil
+		respond.Internal(c, err.Error())
+		return
 	}
-	m := make(map[string]string, len(projects))
-	for _, p := range projects {
-		m[p.ID] = p.ParentID
+	info, ok := h.optionalSession(c)
+	if ok && (!auth.CanAccessProject(info, pe.ProjectID) || !auth.CanAccessEnv(info, pe.EnvID)) {
+		respond.Forbidden(c, "无权查看该发布历史")
+		return
 	}
-	return m
+	items, err := h.Store.ListDeployJobsByProjectEnv(pe.ID, store.DeployHistoryKeep)
+	if err != nil {
+		respond.Internal(c, err.Error())
+		return
+	}
+	for i := range items {
+		sanitizeJob(&items[i], info, ok)
+	}
+	respond.OK(c, gin.H{
+		"items":      items,
+		"totalCount": pe.DeployCount,
+		"kept":       store.DeployHistoryKeep,
+		"lastStatus": pe.LastStatus,
+	})
 }
 
 func (h *Handler) ListJobs(c *gin.Context) {
@@ -148,18 +167,17 @@ func (h *Handler) ListJobs(c *gin.Context) {
 		return
 	}
 	info, ok := h.optionalSession(c)
-	parents := h.projectParentMap()
 	if ok && info.Role == model.RoleManager {
 		filtered := items[:0]
 		for _, it := range items {
-			if auth.CanAccessProjectOrParent(info, it.ProjectID, parents[it.ProjectID]) && auth.CanAccessEnv(info, it.EnvID) {
+			if auth.CanAccessProject(info, it.ProjectID) && auth.CanAccessEnv(info, it.EnvID) {
 				filtered = append(filtered, it)
 			}
 		}
 		items = filtered
 	}
 	for i := range items {
-		sanitizeJob(&items[i], info, ok, parents)
+		sanitizeJob(&items[i], info, ok)
 	}
 	respond.OK(c, gin.H{"items": items})
 }
@@ -167,7 +185,7 @@ func (h *Handler) ListJobs(c *gin.Context) {
 func (h *Handler) GetJob(c *gin.Context) {
 	j, err := h.Store.GetDeployJob(c.Param("id"))
 	if err == store.ErrNotFound {
-		respond.NotFound(c, "任务不存在")
+		respond.NotFound(c, "发布记录不存在")
 		return
 	}
 	if err != nil {
@@ -175,26 +193,21 @@ func (h *Handler) GetJob(c *gin.Context) {
 		return
 	}
 	info, ok := h.optionalSession(c)
-	parents := h.projectParentMap()
-	if ok && (!auth.CanAccessProjectOrParent(info, j.ProjectID, parents[j.ProjectID]) || !auth.CanAccessEnv(info, j.EnvID)) {
-		respond.Forbidden(c, "无权查看该任务")
+	if ok && (!auth.CanAccessProject(info, j.ProjectID) || !auth.CanAccessEnv(info, j.EnvID)) {
+		respond.Forbidden(c, "无权查看该发布记录")
 		return
 	}
-	sanitizeJob(&j, info, ok, parents)
+	sanitizeJob(&j, info, ok)
 	respond.OK(c, j)
 }
 
 // sanitizeJob：无权限会话只保留状态摘要，避免只读面泄露脚本与命令输出。
-func sanitizeJob(j *model.DeployJob, info model.SessionInfo, authed bool, parents map[string]string) {
+func sanitizeJob(j *model.DeployJob, info model.SessionInfo, authed bool) {
 	if authed && auth.IsSuper(info) {
 		return
 	}
-	parentID := ""
-	if parents != nil {
-		parentID = parents[j.ProjectID]
-	}
 	if authed && info.Role == model.RoleManager &&
-		auth.CanAccessProjectOrParent(info, j.ProjectID, parentID) && auth.CanAccessEnv(info, j.EnvID) {
+		auth.CanAccessProject(info, j.ProjectID) && auth.CanAccessEnv(info, j.EnvID) {
 		return
 	}
 	j.LogTail = ""

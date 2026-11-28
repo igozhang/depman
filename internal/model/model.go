@@ -18,7 +18,6 @@ type Project struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	ParentID    string    `json:"parentId,omitempty"` // 一级子项目/子任务挂在根项目下；子级不可再嵌套
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -26,7 +25,6 @@ type Project struct {
 type ProjectInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	ParentID    string `json:"parentId,omitempty"`
 }
 
 type Environment struct {
@@ -80,21 +78,25 @@ type CredentialInput struct {
 }
 
 type ProjectEnv struct {
-	ID           string    `json:"id"`
-	ProjectID    string    `json:"projectId"`
-	EnvID        string    `json:"envId"`
-	SSHCredID    string    `json:"sshCredId,omitempty"`
-	Script       string    `json:"script"`
-	WorkDir      string    `json:"workDir,omitempty"`
-	LastStatus   string    `json:"lastStatus,omitempty"` // idle | running | ok | failed
+	ID           string     `json:"id"`
+	ProjectID    string     `json:"projectId"`
+	EnvID        string     `json:"envId"`
+	Name         string     `json:"name"` // 发布任务名；可与环境一对多
+	SSHCredID    string     `json:"sshCredId,omitempty"`
+	Script       string     `json:"script"`
+	WorkDir      string     `json:"workDir,omitempty"`
+	LastStatus   string     `json:"lastStatus,omitempty"` // idle | running | ok | warn | failed
 	LastDeployAt *time.Time `json:"lastDeployAt,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	DeployCount  int        `json:"deployCount"` // 累计发布次数（含已清理的历史）
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
 }
 
 type ProjectEnvInput struct {
+	ID        string `json:"id,omitempty"` // 有则更新，无则新建（不再按 project+env 唯一）
 	ProjectID string `json:"projectId"`
 	EnvID     string `json:"envId"`
+	Name      string `json:"name"`
 	SSHCredID string `json:"sshCredId"`
 	Script    string `json:"script"`
 	WorkDir   string `json:"workDir"`
@@ -132,7 +134,7 @@ type DeployJob struct {
 	ProjectID   string     `json:"projectId"`
 	EnvID       string     `json:"envId"`
 	ProjectEnvID string    `json:"projectEnvId"`
-	Status      string     `json:"status"` // pending | running | ok | failed
+	Status      string     `json:"status"` // pending | running | ok | warn | failed
 	Script      string     `json:"script"`
 	LogTail     string     `json:"logTail,omitempty"`
 	Error       string     `json:"error,omitempty"`

@@ -70,12 +70,13 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // Run executes script via clean bash --noprofile --norc -c, optionally after cd into workDir.
-func (c *Client) Run(ctx context.Context, workDir, script string, timeout time.Duration) (string, error) {
+func (c *Client) Run(ctx context.Context, workDir, script string, timeout time.Duration) (sshx.ScriptResult, error) {
+	var empty sshx.ScriptResult
 	if err := c.Cfg.validate(); err != nil {
-		return "", err
+		return empty, err
 	}
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return empty, err
 	}
 	if timeout <= 0 {
 		timeout = c.Cfg.Timeout

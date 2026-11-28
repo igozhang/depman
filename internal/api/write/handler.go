@@ -218,7 +218,7 @@ func (h *Handler) UpsertProjectEnv(c *gin.Context) {
 		return
 	}
 	if !auth.IsSuper(info) {
-		respond.Forbidden(c, "绑定发布配置需超管")
+		respond.Forbidden(c, "添加/编辑发布任务需超管")
 		return
 	}
 	if !auth.CanAccessEnv(info, in.EnvID) {
@@ -261,18 +261,14 @@ func (h *Handler) Deploy(c *gin.Context) {
 	}
 	pe, err := h.Store.GetProjectEnv(in.ProjectEnvID)
 	if err == store.ErrNotFound {
-		respond.NotFound(c, "发布配置不存在")
+		respond.NotFound(c, "发布任务不存在")
 		return
 	}
 	if err != nil {
 		respond.Internal(c, err.Error())
 		return
 	}
-	var parentID string
-	if proj, err := h.Store.GetProject(pe.ProjectID); err == nil {
-		parentID = proj.ParentID
-	}
-	if !auth.CanAccessProjectOrParent(info, pe.ProjectID, parentID) || !auth.CanAccessEnv(info, pe.EnvID) {
+	if !auth.CanAccessProject(info, pe.ProjectID) || !auth.CanAccessEnv(info, pe.EnvID) {
 		respond.Forbidden(c, "无权发布该项目/环境")
 		return
 	}

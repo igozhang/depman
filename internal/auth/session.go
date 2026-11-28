@@ -247,18 +247,6 @@ func CanAccessProject(info model.SessionInfo, projectID string) bool {
 	return false
 }
 
-// CanAccessProjectOrParent allows access when the project itself or its parent is in scope.
-// parentID may be empty for root projects.
-func CanAccessProjectOrParent(info model.SessionInfo, projectID, parentID string) bool {
-	if CanAccessProject(info, projectID) {
-		return true
-	}
-	if parentID != "" && CanAccessProject(info, parentID) {
-		return true
-	}
-	return false
-}
-
 func CanAccessEnv(info model.SessionInfo, envID string) bool {
 	if info.Role == model.RoleSuper {
 		return true

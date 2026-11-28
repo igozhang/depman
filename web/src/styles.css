@@ -296,6 +296,24 @@ input, select, textarea {
 }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-danger { color: var(--danger); border-color: #e0b4b0; }
+.btn-history-ok {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-history-ok:hover { background: var(--accent-hover); }
+.btn-history-warn {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+.btn-history-warn:hover { filter: brightness(0.95); }
+.btn-history-failed {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-history-failed:hover { filter: brightness(0.95); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .form-row {
@@ -351,38 +369,6 @@ input, select, textarea {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 0.85rem;
 }
-.project-groups {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-.project-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-.project-group-head {
-  align-items: stretch;
-  gap: 0.75rem;
-}
-.project-group-head .project-capsule-root {
-  flex: 1;
-  min-width: 0;
-}
-.project-group-head .actions {
-  flex-shrink: 0;
-  align-self: center;
-}
-.project-children {
-  margin-left: 1rem;
-  padding-left: 0.85rem;
-  border-left: 2px solid var(--line);
-}
-.project-children-empty {
-  margin: 0 0 0 1rem;
-  padding-left: 0.85rem;
-  font-size: 13px;
-}
 .project-capsule {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -394,14 +380,11 @@ input, select, textarea {
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.project-capsule-child {
-  background: var(--surface);
-}
 .project-capsule:hover {
   border-color: var(--accent);
   box-shadow: 0 1px 0 rgba(61, 107, 74, 0.12);
 }
-/* 环境绑定卡：同行等高，标题顶齐、操作底齐 */
+/* 发布任务卡：同行等高，标题顶齐、操作底齐 */
 .capsule-grid-bind {
   align-items: stretch;
 }
@@ -454,6 +437,7 @@ input, select, textarea {
   background: var(--surface);
 }
 .status-pill.ok { color: var(--ok); border-color: #8fbf9a; }
+.status-pill.warn { color: var(--warn); border-color: #e0c56e; }
 .status-pill.failed { color: var(--danger); border-color: #e0b4b0; }
 .status-pill.running { color: var(--warn); }
 
@@ -555,11 +539,58 @@ td.actions { margin-top: 0; white-space: nowrap; }
 .drawer.drawer-auth {
   width: min(360px, 100%);
 }
+.drawer.drawer-history {
+  width: min(560px, 100%);
+  padding-left: 20px;
+  resize: none;
+}
+.drawer-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+}
+.drawer-resize:hover,
+.drawer-resize.is-dragging {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 .drawer-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.history-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.history-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  margin-top: 0;
+}
+.history-item-head:hover {
+  background: var(--surface);
+}
+.history-item .log-box {
+  max-height: 280px;
+  margin: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--line);
 }
 .field-copy-wrap {
   position: relative;

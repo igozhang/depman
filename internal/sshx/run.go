@@ -74,32 +74,37 @@ func TestConnect(t Target, timeout time.Duration) error {
 	return sess.Run("true")
 }
 
+// ScriptResult is combined remote output plus whether stderr had content (for warn status).
+type ScriptResult struct {
+	Output    string
+	HasStderr bool
+}
+
 // RunScript executes script with a clean non-login bash (no profile/rc), optionally in workDir.
-// Using bash -lc previously sourced login profiles, which can print unrelated paths or even
-// exit before the deploy script runs — matching symptoms like a lone "/etc/..." line.
-func RunScript(t Target, workDir, script string, timeout time.Duration) (string, error) {
+func RunScript(t Target, workDir, script string, timeout time.Duration) (ScriptResult, error) {
+	var res ScriptResult
 	if timeout <= 0 {
 		timeout = 10 * time.Minute
 	}
 	cli, err := dial(t, 15*time.Second)
 	if err != nil {
-		return "", err
+		return res, err
 	}
 	defer cli.Close()
 
 	sess, err := cli.NewSession()
 	if err != nil {
-		return "", err
+		return res, err
 	}
 	defer sess.Close()
 
-	var buf bytes.Buffer
-	sess.Stdout = &buf
-	sess.Stderr = &buf
+	var stdout, stderr bytes.Buffer
+	sess.Stdout = &stdout
+	sess.Stderr = &stderr
 
 	cmd := strings.TrimSpace(script)
 	if cmd == "" {
-		return "", fmt.Errorf("script empty")
+		return res, fmt.Errorf("script empty")
 	}
 	if wd := strings.TrimSpace(workDir); wd != "" {
 		cmd = "cd " + shellQuote(wd) + " && " + cmd
@@ -112,10 +117,25 @@ func RunScript(t Target, workDir, script string, timeout time.Duration) (string,
 	}()
 	select {
 	case err := <-done:
-		return buf.String(), err
+		res.HasStderr = strings.TrimSpace(stderr.String()) != ""
+		res.Output = mergeOut(stdout.String(), stderr.String())
+		return res, err
 	case <-time.After(timeout):
 		_ = sess.Close()
-		return buf.String(), fmt.Errorf("timeout after %s", timeout)
+		res.HasStderr = strings.TrimSpace(stderr.String()) != ""
+		res.Output = mergeOut(stdout.String(), stderr.String())
+		return res, fmt.Errorf("timeout after %s", timeout)
+	}
+}
+
+func mergeOut(stdout, stderr string) string {
+	switch {
+	case stdout == "":
+		return stderr
+	case stderr == "":
+		return stdout
+	default:
+		return stdout + stderr
 	}
 }
 

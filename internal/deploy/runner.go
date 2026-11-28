@@ -28,16 +28,16 @@ func (r *Runner) run(jobID string) {
 	}
 	pe, err := r.Store.GetProjectEnv(job.ProjectEnvID)
 	if err != nil {
-		_ = r.fail(jobID, "", err.Error())
+		_ = r.fail(jobID, "", "", err.Error())
 		return
 	}
 	if pe.SSHCredID == "" {
-		_ = r.fail(jobID, "", "未配置 SSH 凭据")
+		_ = r.fail(jobID, pe.ID, "", "未配置 SSH 凭据")
 		return
 	}
 	cred, secret, err := r.Store.PlainSecret(pe.SSHCredID)
 	if err != nil {
-		_ = r.fail(jobID, "", "读取 SSH 凭据失败: "+err.Error())
+		_ = r.fail(jobID, pe.ID, "", "读取 SSH 凭据失败: "+err.Error())
 		return
 	}
 	start := time.Now()
@@ -45,7 +45,7 @@ func (r *Runner) run(jobID string) {
 	_ = r.Store.MarkProjectEnvDeploy(pe.ID, "running", start)
 
 	cli := connssh.New(connssh.ConfigFromSecret(cred.Host, cred.Port, cred.Username, secret))
-	out, err := cli.Run(context.Background(), pe.WorkDir, pe.Script, 15*time.Minute)
+	res, err := cli.Run(context.Background(), pe.WorkDir, pe.Script, 15*time.Minute)
 	fin := time.Now()
 	port := cred.Port
 	if port <= 0 {
@@ -57,19 +57,29 @@ func (r *Runner) run(jobID string) {
 	}
 	header := fmt.Sprintf("[depman] %s@%s:%d workDir=%q\n[depman] script:\n%s\n----------\n",
 		user, cred.Host, port, pe.WorkDir, pe.Script)
-	out = header + out
+	out := header + res.Output
+	status := "ok"
+	errMsg := ""
 	if err != nil {
-		_ = r.Store.UpdateDeployJob(jobID, "failed", out, err.Error(), &start, &fin)
-		_ = r.Store.MarkProjectEnvDeploy(pe.ID, "failed", fin)
-		return
+		status = "failed"
+		errMsg = err.Error()
+	} else if res.HasStderr {
+		// 退出码 0 但 stderr 有内容 → 成功但有报错
+		status = "warn"
 	}
-	_ = r.Store.UpdateDeployJob(jobID, "ok", out, "", &start, &fin)
-	_ = r.Store.MarkProjectEnvDeploy(pe.ID, "ok", fin)
+	_ = r.Store.UpdateDeployJob(jobID, status, out, errMsg, &start, &fin)
+	_ = r.Store.MarkProjectEnvDeploy(pe.ID, status, fin)
+	_ = r.Store.PruneDeployJobsKeepLatest(pe.ID, store.DeployHistoryKeep)
 }
 
-func (r *Runner) fail(jobID, logTail, msg string) error {
+func (r *Runner) fail(jobID, peID, logTail, msg string) error {
 	fin := time.Now()
-	return r.Store.UpdateDeployJob(jobID, "failed", logTail, msg, nil, &fin)
+	err := r.Store.UpdateDeployJob(jobID, "failed", logTail, msg, nil, &fin)
+	if peID != "" {
+		_ = r.Store.MarkProjectEnvDeploy(peID, "failed", fin)
+		_ = r.Store.PruneDeployJobsKeepLatest(peID, store.DeployHistoryKeep)
+	}
+	return err
 }
 
 func (r *Runner) Enqueue(pe model.ProjectEnv, createdBy string) (model.DeployJob, error) {
@@ -77,6 +87,7 @@ func (r *Runner) Enqueue(pe model.ProjectEnv, createdBy string) (model.DeployJob
 	if err != nil {
 		return job, err
 	}
+	_ = r.Store.BumpDeployCount(pe.ID)
 	r.Start(job.ID)
 	return job, nil
 }

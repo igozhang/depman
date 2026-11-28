@@ -67,6 +67,58 @@ FROM deploy_jobs ORDER BY created_at DESC LIMIT ?`, limit)
 	return out, rows.Err()
 }
 
+const DeployHistoryKeep = 30
+
+func (s *Store) ListDeployJobsByProjectEnv(projectEnvID string, limit int) ([]model.DeployJob, error) {
+	if limit <= 0 {
+		limit = DeployHistoryKeep
+	}
+	rows, err := s.db.Query(`SELECT id, project_id, env_id, project_env_id, status, script, log_tail, error, started_at, finished_at, created_at, created_by
+FROM deploy_jobs WHERE project_env_id=? ORDER BY created_at DESC LIMIT ?`, projectEnvID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.DeployJob
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
+// PruneDeployJobsKeepLatest deletes older jobs beyond keep, retaining only a count on project_envs.
+func (s *Store) PruneDeployJobsKeepLatest(projectEnvID string, keep int) error {
+	if keep <= 0 {
+		keep = DeployHistoryKeep
+	}
+	rows, err := s.db.Query(`SELECT id FROM deploy_jobs WHERE project_env_id=? ORDER BY created_at DESC LIMIT -1 OFFSET ?`, projectEnvID, keep)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := s.db.Exec(`DELETE FROM deploy_jobs WHERE id=?`, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func scanJob(row scanner) (model.DeployJob, error) {
 	var j model.DeployJob
 	var sAt, fAt sql.NullInt64

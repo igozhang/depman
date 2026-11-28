@@ -27,6 +27,9 @@ export const readApi = {
   job(id) {
     return http.get(`/read/jobs/${id}`)
   },
+  projectEnvJobs(projectEnvId) {
+    return http.get(`/read/project-envs/${projectEnvId}/jobs`)
+  },
   scopedKeys() {
     return http.get('/read/scoped-keys')
   }

@@ -286,7 +286,7 @@ onMounted(load)
     <div class="toolbar">
       <div>
         <h1>环境</h1>
-        <p class="page-desc">简单发布所需的环境与凭据；密码默认掩码。标签全局最多 30 个。</p>
+        <p class="page-desc">维护可发布的目标环境与凭据（与项目里的「发布任务」配合使用）。密码默认掩码；标签全局最多 30 个。</p>
       </div>
       <div class="actions">
         <button type="button" class="btn" @click="load">刷新</button>

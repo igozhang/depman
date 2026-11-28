@@ -23,27 +23,6 @@ const expiryText = computed(() => {
 
 const expiryWarn = computed(() => canWrite.value && remainingSec() < 5 * 60)
 
-/** 签发 key 时项目列表：根在前、子任务缩进标注；勾选父项目即覆盖其子任务访问 */
-const projectOptions = computed(() => {
-  const list = projects.value
-  const byId = new Map(list.map((p) => [p.id, p]))
-  const roots = list.filter((p) => !p.parentId)
-  const out = []
-  for (const root of roots) {
-    out.push({ id: root.id, label: root.name })
-    for (const ch of list.filter((p) => p.parentId === root.id)) {
-      out.push({ id: ch.id, label: `${root.name} / ${ch.name}` })
-    }
-  }
-  // 父级不在列表中的孤儿子任务
-  for (const p of list) {
-    if (p.parentId && !byId.has(p.parentId) && !out.some((o) => o.id === p.id)) {
-      out.push({ id: p.id, label: p.name })
-    }
-  }
-  return out
-})
-
 async function submit() {
   const k = String(key.value || '').trim()
   if (!k || state.busy) return
@@ -180,15 +159,15 @@ onMounted(() => {
           </div>
         </div>
         <div class="form-row">
-          <label>项目（可多选；勾选父项目即含子任务）</label>
+          <label>项目（可多选）</label>
           <div class="kv-row">
-            <label v-for="p in projectOptions" :key="p.id" class="status-pill" style="cursor:pointer">
+            <label v-for="p in projects" :key="p.id" class="status-pill" style="cursor:pointer">
               <input
                 type="checkbox"
                 :checked="issue.projectIds.includes(p.id)"
                 @change="toggleId(issue.projectIds, p.id)"
               />
-              {{ p.label }}
+              {{ p.name }}
             </label>
           </div>
         </div>
