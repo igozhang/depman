@@ -88,8 +88,8 @@ func (s *Store) UpsertProjectEnv(in model.ProjectEnvInput) (model.ProjectEnv, er
 	if cr.Type != "ssh" {
 		return model.ProjectEnv{}, fmtError("发布凭据须为 ssh 类型")
 	}
-	if cr.EnvID != in.EnvID {
-		return model.ProjectEnv{}, fmtError("SSH 凭据须属于所选环境")
+	if cr.EnvID != "" && cr.EnvID != in.EnvID {
+		return model.ProjectEnv{}, fmtError("SSH 凭据须为公共凭据或属于所选环境")
 	}
 	if strings.TrimSpace(in.Script) == "" {
 		return model.ProjectEnv{}, fmtError("发布脚本不能为空")

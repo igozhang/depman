@@ -8,16 +8,22 @@ const TAG_MAX = 15
 const envs = ref([])
 const allTags = ref([])
 const creds = ref([])
+const resolves = ref([])
 const err = ref('')
 const filterKind = ref('')
 const showEnv = ref(false)
 const showCred = ref(false)
+const showResolve = ref(false)
 const reveal = ref(false)
 const editingId = ref('')
 const editingCredId = ref('')
+const editingResolveId = ref('')
 const tagDraft = ref('')
+/** @type {import('vue').Ref<'shared'|'env'>} */
+const credScope = ref('shared')
 const envForm = ref({ name: '', kind: 'dev', description: '', tags: [] })
 const credForm = ref(emptyCredForm())
+const resolveForm = ref(emptyResolveForm())
 /** @type {import('vue').Ref<Record<string, { ok: boolean|null, msg: string, busy?: boolean }>>} */
 const testStatus = ref({})
 let skipPortReset = false
@@ -26,13 +32,18 @@ function emptyCredForm() {
   return {
     envId: '',
     name: '',
-    type: 'ssh',
+    type: 'git',
     host: '',
-    port: 22,
+    port: 0,
     username: '',
     secret: '',
-    extra: ''
+    extra: '',
+    authCredId: ''
   }
+}
+
+function emptyResolveForm() {
+  return { hostname: '', ip: '', note: '' }
 }
 
 /** Port defaults by type; 0 = protocol default */
@@ -55,6 +66,10 @@ watch(
   (type) => {
     if (skipPortReset) return
     credForm.value.port = defaultPortForType(type)
+    if (credForm.value.authCredId) {
+      const ok = authOptions.value.some((c) => c.id === credForm.value.authCredId)
+      if (!ok) credForm.value.authCredId = ''
+    }
   }
 )
 
@@ -75,11 +90,39 @@ const unusedTags = computed(() => {
   return allTags.value.filter((t) => !selected.has(String(t.name).toLowerCase()))
 })
 
+const sharedCreds = computed(() => creds.value.filter((c) => !c.envId))
+
 const envDrawerTitle = computed(() => (editingId.value ? '编辑环境' : '新建环境'))
-const credDrawerTitle = computed(() => (editingCredId.value ? '编辑凭据' : '添加凭据'))
+const credDrawerTitle = computed(() => {
+  if (editingCredId.value) {
+    return credScope.value === 'shared' ? '编辑公共凭据' : '编辑环境凭据'
+  }
+  return credScope.value === 'shared' ? '添加公共凭据' : '添加环境凭据'
+})
+const resolveDrawerTitle = computed(() => (editingResolveId.value ? '编辑解析' : '添加解析'))
+
+const usesAuthRef = computed(() => credScope.value === 'env')
+
+const authOptions = computed(() => {
+  const typ = credForm.value.type
+  const envId = credForm.value.envId
+  return creds.value.filter((c) => {
+    if (c.type !== typ) return false
+    if (c.authCredId) return false
+    if (editingCredId.value && c.id === editingCredId.value) return false
+    return !c.envId || c.envId === envId
+  })
+})
+
+const hideLocalSecret = computed(() => !!credForm.value.authCredId)
 
 function credsOf(envId) {
   return creds.value.filter((c) => c.envId === envId)
+}
+
+function credName(id) {
+  if (!id) return ''
+  return creds.value.find((c) => c.id === id)?.name || id
 }
 
 function emptyEnvForm() {
@@ -95,6 +138,8 @@ async function load() {
     allTags.value = Array.isArray(t?.items) ? t.items : []
     const c = await readApi.credentials('', reveal.value && isSuper.value)
     creds.value = Array.isArray(c?.items) ? c.items : []
+    const r = await readApi.hostResolves()
+    resolves.value = Array.isArray(r?.items) ? r.items : []
   } catch (ex) {
     err.value = ex?.message || '加载失败'
   }
@@ -106,10 +151,27 @@ async function toggleReveal() {
   await load()
 }
 
-function openCreateCred() {
+function openCreateSharedCred() {
   editingCredId.value = ''
+  credScope.value = 'shared'
   skipPortReset = true
-  credForm.value = emptyCredForm()
+  credForm.value = { ...emptyCredForm(), type: 'git', port: 0 }
+  showCred.value = true
+  nextTick(() => {
+    skipPortReset = false
+  })
+}
+
+function openCreateEnvCred(env) {
+  editingCredId.value = ''
+  credScope.value = 'env'
+  skipPortReset = true
+  credForm.value = {
+    ...emptyCredForm(),
+    envId: env.id,
+    type: 'ssh',
+    port: 22
+  }
   showCred.value = true
   nextTick(() => {
     skipPortReset = false
@@ -118,6 +180,7 @@ function openCreateCred() {
 
 function openEditCred(c) {
   editingCredId.value = c.id
+  credScope.value = c.envId ? 'env' : 'shared'
   skipPortReset = true
   credForm.value = {
     envId: c.envId || '',
@@ -127,7 +190,8 @@ function openEditCred(c) {
     port: c.port ?? defaultPortForType(c.type || 'ssh'),
     username: c.username || '',
     secret: '',
-    extra: c.extra || ''
+    extra: c.extra || '',
+    authCredId: c.authCredId || ''
   }
   showCred.value = true
   nextTick(() => {
@@ -225,7 +289,20 @@ async function removeEnv(id) {
 
 async function saveCred() {
   try {
-    const body = { ...credForm.value, port: Number(credForm.value.port) || 0 }
+    const body = {
+      ...credForm.value,
+      envId: credScope.value === 'shared' ? '' : credForm.value.envId,
+      port: Number(credForm.value.port) || 0,
+      authCredId: credForm.value.authCredId || ''
+    }
+    if (credScope.value === 'env' && !body.envId) {
+      err.value = '请选择环境'
+      return
+    }
+    if (body.authCredId) {
+      body.username = ''
+      body.secret = ''
+    }
     if (editingCredId.value) {
       if (!body.secret) delete body.secret
       await writeApi.updateCredential(editingCredId.value, body)
@@ -263,7 +340,7 @@ async function testCred(c) {
   try {
     const r = await writeApi.pingCredential(c.id)
     const ok = !!r?.ok
-    let msg = ok ? (r?.stub ? '配置可用（未探测远端）' : '连通成功') : r?.message || r?.error || '失败'
+    const msg = ok ? '连通成功' : r?.message || r?.error || '失败'
     testStatus.value = {
       ...testStatus.value,
       [c.id]: { ok, msg, busy: false }
@@ -278,6 +355,53 @@ async function testCred(c) {
   }
 }
 
+function openCreateResolve() {
+  editingResolveId.value = ''
+  resolveForm.value = emptyResolveForm()
+  showResolve.value = true
+}
+
+function openEditResolve(r) {
+  editingResolveId.value = r.id
+  resolveForm.value = {
+    hostname: r.hostname || '',
+    ip: r.ip || '',
+    note: r.note || ''
+  }
+  showResolve.value = true
+}
+
+async function saveResolve() {
+  try {
+    const body = {
+      hostname: resolveForm.value.hostname,
+      ip: resolveForm.value.ip,
+      note: resolveForm.value.note
+    }
+    if (editingResolveId.value) {
+      await writeApi.updateHostResolve(editingResolveId.value, body)
+    } else {
+      await writeApi.createHostResolve(body)
+    }
+    showResolve.value = false
+    editingResolveId.value = ''
+    resolveForm.value = emptyResolveForm()
+    await load()
+  } catch (e) {
+    err.value = e?.message || '保存失败'
+  }
+}
+
+async function removeResolve(id) {
+  if (!confirm('删除该主机解析？')) return
+  try {
+    await writeApi.deleteHostResolve(id)
+    await load()
+  } catch (e) {
+    err.value = e?.message || '删除失败'
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -286,14 +410,15 @@ onMounted(load)
     <div class="toolbar">
       <div>
         <h1>环境</h1>
-        <p class="page-desc">维护可发布的目标环境与凭据（与项目里的「发布任务」配合使用）。密码默认掩码；标签全局最多 30 个。</p>
+        <p class="page-desc">维护可发布的目标环境与凭据（与项目里的「发布任务」配合使用）。密码默认掩码；</p>
       </div>
       <div class="actions">
         <button type="button" class="btn" @click="load">刷新</button>
         <button v-if="isSuper" type="button" class="btn" @click="toggleReveal">
           {{ reveal ? '隐藏密钥' : '显示密钥' }}
         </button>
-        <button v-if="isSuper" type="button" class="btn" @click="openCreateCred">添加凭据</button>
+        <button v-if="isSuper" type="button" class="btn" @click="openCreateSharedCred">添加公共凭据</button>
+        <button v-if="isSuper" type="button" class="btn" @click="openCreateResolve">添加解析</button>
         <button v-if="isSuper" type="button" class="btn btn-primary" @click="openCreateEnv">新建环境</button>
       </div>
     </div>
@@ -307,20 +432,41 @@ onMounted(load)
 
     <p v-if="err" class="ops-msg is-err">{{ err }}</p>
 
-    <div v-if="!filteredEnvs.length" class="empty">暂无环境</div>
-    <div v-for="env in filteredEnvs" :key="env.id" class="panel">
+    <div v-if="resolves.length" class="panel">
       <div class="toolbar">
         <div>
-          <strong>{{ env.name }}</strong>
-          <span class="status-pill" style="margin-left:8px">{{ env.kind }}</span>
-          <span v-if="env.tags?.length" class="tag-list" style="margin-left:8px">
-            <span v-for="t in env.tags" :key="t" class="tag-chip">{{ t }}</span>
-          </span>
-          <p class="muted" style="margin:0.25rem 0 0">{{ env.description || '—' }}</p>
+          <strong>主机解析</strong>
+          <p class="muted" style="margin:0.25rem 0 0">写入本服务所有 Pod 的 hosts，供凭据连通与发布使用</p>
         </div>
-        <div v-if="isSuper" class="actions">
-          <button type="button" class="btn btn-sm" @click="openEditEnv(env)">编辑</button>
-          <button type="button" class="btn btn-sm btn-danger" @click="removeEnv(env.id)">删除</button>
+      </div>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>主机名</th>
+            <th>IP</th>
+            <th>备注</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in resolves" :key="r.id">
+            <td><code>{{ r.hostname }}</code></td>
+            <td>{{ r.ip }}</td>
+            <td>{{ r.note || '—' }}</td>
+            <td class="actions">
+              <button v-if="isSuper" type="button" class="btn btn-sm" @click="openEditResolve(r)">编辑</button>
+              <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" @click="removeResolve(r.id)">删</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <div>
+          <strong>公共凭据</strong>
+          <p class="muted" style="margin:0.25rem 0 0">全局认证池（Git / Harbor / Rancher / SSH），可被各环境引用</p>
         </div>
       </div>
       <table class="data">
@@ -336,7 +482,7 @@ onMounted(load)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="c in credsOf(env.id)" :key="c.id">
+          <tr v-for="c in sharedCreds" :key="c.id">
             <td>{{ c.name }}</td>
             <td>{{ c.type }}</td>
             <td>{{ c.host }}{{ c.port ? ':' + c.port : '' }}</td>
@@ -369,8 +515,84 @@ onMounted(load)
               <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" @click="removeCred(c.id)">删</button>
             </td>
           </tr>
+          <tr v-if="!sharedCreds.length">
+            <td colspan="7" class="muted">暂无公共凭据</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="!filteredEnvs.length" class="empty">暂无环境</div>
+    <div v-for="env in filteredEnvs" :key="env.id" class="panel">
+      <div class="toolbar">
+        <div>
+          <strong>{{ env.name }}</strong>
+          <span class="status-pill" style="margin-left:8px">{{ env.kind }}</span>
+          <span v-if="env.tags?.length" class="tag-list" style="margin-left:8px">
+            <span v-for="t in env.tags" :key="t" class="tag-chip">{{ t }}</span>
+          </span>
+          <p class="muted" style="margin:0.25rem 0 0">{{ env.description || '—' }}</p>
+        </div>
+        <div v-if="isSuper" class="actions">
+          <button type="button" class="btn btn-sm" @click="openCreateEnvCred(env)">添加环境凭据</button>
+          <button type="button" class="btn btn-sm" @click="openEditEnv(env)">编辑</button>
+          <button type="button" class="btn btn-sm btn-danger" @click="removeEnv(env.id)">删除</button>
+        </div>
+      </div>
+      <table class="data">
+        <thead>
+          <tr>
+            <th>名称</th>
+            <th>类型</th>
+            <th>主机 / 目标</th>
+            <th>认证</th>
+            <th>密钥</th>
+            <th>连通</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="c in credsOf(env.id)" :key="c.id">
+            <td>{{ c.name }}</td>
+            <td>{{ c.type }}</td>
+            <td>{{ c.host }}{{ c.port ? ':' + c.port : '' }}</td>
+            <td>
+              <template v-if="c.authCredId">引用 · {{ credName(c.authCredId) }}</template>
+              <template v-else>{{ c.username || '—' }}</template>
+            </td>
+            <td>
+              <template v-if="c.authCredId"><span class="muted">随认证凭据</span></template>
+              <template v-else>
+                <code v-if="reveal && c.secret">{{ c.secret }}</code>
+                <span v-else>{{ c.secretSet ? '••••••••' : '（无）' }}</span>
+              </template>
+            </td>
+            <td>
+              <span
+                v-if="testStatus[c.id]"
+                class="ops-msg"
+                style="margin:0;display:inline"
+                :class="{
+                  'is-ok': testStatus[c.id].ok === true,
+                  'is-err': testStatus[c.id].ok === false
+                }"
+              >{{ testStatus[c.id].msg }}</span>
+              <span v-else class="muted">—</span>
+            </td>
+            <td class="actions">
+              <button
+                v-if="canWrite"
+                type="button"
+                class="btn btn-sm"
+                :disabled="testStatus[c.id]?.busy"
+                @click="testCred(c)"
+              >测试</button>
+              <button v-if="isSuper" type="button" class="btn btn-sm" @click="openEditCred(c)">编辑</button>
+              <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" @click="removeCred(c.id)">删</button>
+            </td>
+          </tr>
           <tr v-if="!credsOf(env.id).length">
-            <td colspan="7" class="muted">无凭据</td>
+            <td colspan="7" class="muted">无环境凭据</td>
           </tr>
         </tbody>
       </table>
@@ -439,7 +661,10 @@ onMounted(load)
           <h2 style="margin:0;font-size:1.1rem">{{ credDrawerTitle }}</h2>
           <button type="button" class="btn btn-sm" @click="showCred = false">关闭</button>
         </div>
-        <div class="form-row">
+        <p v-if="credScope === 'shared'" class="muted" style="margin:0 0 0.75rem">
+          公共凭据只存服务主机与账号；具体仓库/集群目标在环境凭据里填写并引用此处认证。
+        </p>
+        <div v-if="credScope === 'env'" class="form-row">
           <label>环境</label>
           <select v-model="credForm.envId">
             <option value="">选择</option>
@@ -454,19 +679,25 @@ onMounted(load)
           <div class="form-row">
             <label>类型</label>
             <select v-model="credForm.type">
-              <option value="ssh">ssh</option>
               <option value="git">git</option>
               <option value="harbor">harbor</option>
               <option value="api">api</option>
+              <option value="ssh">ssh</option>
             </select>
           </div>
         </div>
         <div class="form-grid">
           <div class="form-row">
-            <label>主机</label>
+            <label>{{ credScope === 'shared' ? '主机' : '主机 / 仓库地址' }}</label>
             <input
               v-model="credForm.host"
-              :placeholder="credForm.type === 'git' ? 'git.example.com or URL' : ''"
+              :placeholder="
+                credForm.type === 'git'
+                  ? credScope === 'shared'
+                    ? 'gitlab.example.com'
+                    : 'https://gitlab.example.com/group/repo.git'
+                  : ''
+              "
             />
           </div>
           <div class="form-row">
@@ -479,20 +710,60 @@ onMounted(load)
             />
           </div>
         </div>
-        <div class="form-row">
-          <label>用户名</label>
-          <input v-model="credForm.username" />
+        <div v-if="usesAuthRef" class="form-row">
+          <label>认证凭据</label>
+          <select v-model="credForm.authCredId">
+            <option value="">本条自带账号（不引用）</option>
+            <option v-for="a in authOptions" :key="a.id" :value="a.id">
+              {{ a.envId ? '[环境] ' : '[公共] ' }}{{ a.name }} · {{ a.host }}
+            </option>
+          </select>
+          <p v-if="credForm.type === 'git'" class="muted" style="margin:0.35rem 0 0;font-size:0.85rem">
+            主机填完整仓库 URL；认证选公共 Git 账号即可。
+          </p>
         </div>
-        <div class="form-row">
-          <label>密码 / 私钥 / Token</label>
-          <textarea
-            v-model="credForm.secret"
-            rows="4"
-            :placeholder="editingCredId ? '留空则保留原密钥；填写则覆盖' : '不明文列表展示；含 PRIVATE KEY 则按私钥认证'"
-          />
-        </div>
+        <template v-if="!hideLocalSecret">
+          <div class="form-row">
+            <label>用户名</label>
+            <input v-model="credForm.username" />
+          </div>
+          <div class="form-row">
+            <label>密码 / 私钥 / Token</label>
+            <textarea
+              v-model="credForm.secret"
+              rows="4"
+              :placeholder="editingCredId ? '留空则保留原密钥；填写则覆盖' : '不明文列表展示；含 PRIVATE KEY 则按私钥认证'"
+            />
+          </div>
+        </template>
+        <p v-else class="muted" style="margin:0 0 0.75rem">已引用认证凭据，用户名与密钥由其提供。</p>
         <div class="actions">
           <button type="button" class="btn btn-primary" @click="saveCred">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showResolve" class="drawer-mask" @click.self="showResolve = false">
+      <div class="drawer">
+        <div class="drawer-head">
+          <h2 style="margin:0;font-size:1.1rem">{{ resolveDrawerTitle }}</h2>
+          <button type="button" class="btn btn-sm" @click="showResolve = false">关闭</button>
+        </div>
+        <p class="muted" style="margin:0 0 0.75rem">保存后写入本服务 Pod 的 /etc/hosts，重启后也会自动同步。</p>
+        <div class="form-row">
+          <label>主机名</label>
+          <input v-model="resolveForm.hostname" placeholder="gitlab.example.com" />
+        </div>
+        <div class="form-row">
+          <label>IP</label>
+          <input v-model="resolveForm.ip" placeholder="10.0.0.1" />
+        </div>
+        <div class="form-row">
+          <label>备注</label>
+          <input v-model="resolveForm.note" placeholder="可选" />
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" @click="saveResolve">保存</button>
         </div>
       </div>
     </div>

@@ -254,6 +254,10 @@ func CanAccessEnv(info model.SessionInfo, envID string) bool {
 	if info.Role != model.RoleManager {
 		return false
 	}
+	// Shared credentials (empty env) are usable by any manager.
+	if envID == "" {
+		return true
+	}
 	if len(info.EnvIDs) == 0 {
 		return true
 	}

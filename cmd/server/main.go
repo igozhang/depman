@@ -16,6 +16,7 @@ import (
 	"depman/internal/auth"
 	"depman/internal/config"
 	"depman/internal/deploy"
+	"depman/internal/hostfile"
 	"depman/internal/store"
 )
 
@@ -67,6 +68,11 @@ func main() {
 	defer close(cacheGCStop)
 
 	runner := &deploy.Runner{Store: st}
+	if err := hostfile.SyncFromStore(st); err != nil {
+		log.Printf("host resolves sync (%s): %v", hostfile.Path(), err)
+	} else {
+		log.Printf("host resolves synced to %s", hostfile.Path())
+	}
 	log.Printf("cache ready at %s", cacheStore.Root())
 
 	var webFS fs.FS

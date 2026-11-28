@@ -2,9 +2,9 @@ package store
 
 import (
 	"database/sql"
+	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS environment_tags (
 );
 CREATE TABLE IF NOT EXISTS credentials (
   id TEXT PRIMARY KEY,
-  env_id TEXT NOT NULL,
+  env_id TEXT NOT NULL DEFAULT '',
   name TEXT NOT NULL,
   type TEXT NOT NULL,
   host TEXT NOT NULL DEFAULT '',
@@ -89,9 +89,9 @@ CREATE TABLE IF NOT EXISTS credentials (
   username TEXT NOT NULL DEFAULT '',
   secret_enc TEXT NOT NULL DEFAULT '',
   extra TEXT NOT NULL DEFAULT '',
+  auth_cred_id TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  FOREIGN KEY(env_id) REFERENCES environments(id) ON DELETE CASCADE
+  updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS project_envs (
   id TEXT PRIMARY KEY,
@@ -118,7 +118,8 @@ CREATE TABLE IF NOT EXISTS scoped_keys (
   env_ids TEXT NOT NULL DEFAULT '[]',
   expires_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
-  created_by TEXT NOT NULL DEFAULT ''
+  created_by TEXT NOT NULL DEFAULT '',
+  plain_enc TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS deploy_jobs (
   id TEXT PRIMARY KEY,
@@ -134,81 +135,56 @@ CREATE TABLE IF NOT EXISTS deploy_jobs (
   created_at INTEGER NOT NULL,
   created_by TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS host_resolves (
+  id TEXT PRIMARY KEY,
+  hostname TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  ip TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_cred_env ON credentials(env_id);
+CREATE INDEX IF NOT EXISTS idx_cred_auth ON credentials(auth_cred_id);
 CREATE INDEX IF NOT EXISTS idx_pe_project ON project_envs(project_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON deploy_jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jobs_pe_created ON deploy_jobs(project_env_id, created_at DESC);
 `)
 	if err != nil {
 		return err
 	}
-	// 兼容旧库：明文加密列（供超管复制）；已存在则忽略
-	_, _ = s.db.Exec(`ALTER TABLE scoped_keys ADD COLUMN plain_enc TEXT NOT NULL DEFAULT ''`)
-	// 兼容旧库：遗留 parent_id 列（已不再使用）
-	_, _ = s.db.Exec(`ALTER TABLE projects ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''`)
-	// 兼容旧库：发布任务累计次数 + 按绑定查历史
-	_, _ = s.db.Exec(`ALTER TABLE project_envs ADD COLUMN deploy_count INTEGER NOT NULL DEFAULT 0`)
-	_, _ = s.db.Exec(`ALTER TABLE project_envs ADD COLUMN name TEXT NOT NULL DEFAULT ''`)
-	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_jobs_pe_created ON deploy_jobs(project_env_id, created_at DESC)`)
-	// 若尚未累计过，用现存 job 数回填（仅 deploy_count=0 时）
-	_, _ = s.db.Exec(`UPDATE project_envs SET deploy_count=(
-SELECT COUNT(*) FROM deploy_jobs WHERE deploy_jobs.project_env_id=project_envs.id
-) WHERE deploy_count=0`)
-	if err := s.migrateDropProjectEnvUnique(); err != nil {
-		return err
-	}
-	// 旧数据无任务名时，用环境名回填；仍空则给占位名
-	_, _ = s.db.Exec(`UPDATE project_envs SET name=(
-SELECT e.name FROM environments e WHERE e.id=project_envs.env_id
-) WHERE TRIM(name)=''`)
-	_, _ = s.db.Exec(`UPDATE project_envs SET name='未命名任务' WHERE TRIM(name)=''`)
-	return nil
+	return s.ensureCredentialSchema()
 }
 
-// migrateDropProjectEnvUnique removes legacy UNIQUE(project_id, env_id) so one project can have many tasks per env.
-func (s *Store) migrateDropProjectEnvUnique() error {
-	var ddl string
-	err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='project_envs'`).Scan(&ddl)
-	if err == sql.ErrNoRows || ddl == "" {
-		return nil
-	}
-	if err != nil {
+// ensureCredentialSchema rebuilds credentials when the table predates auth_cred_id (dev wipe).
+func (s *Store) ensureCredentialSchema() error {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('credentials') WHERE name='auth_cred_id'`).Scan(&n); err != nil {
 		return err
 	}
-	if !strings.Contains(ddl, "UNIQUE(project_id, env_id)") && !strings.Contains(ddl, "UNIQUE (project_id, env_id)") {
+	if n > 0 {
 		return nil
 	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	_, err = tx.Exec(`
-CREATE TABLE project_envs_new (
+	log.Printf("store: credentials schema outdated, recreating table (data discarded)")
+	_, err := s.db.Exec(`
+DROP TABLE IF EXISTS credentials;
+CREATE TABLE credentials (
   id TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  env_id TEXT NOT NULL,
-  name TEXT NOT NULL DEFAULT '',
-  ssh_cred_id TEXT NOT NULL DEFAULT '',
-  script TEXT NOT NULL DEFAULT '',
-  work_dir TEXT NOT NULL DEFAULT '',
-  last_status TEXT NOT NULL DEFAULT '',
-  last_deploy_at INTEGER,
-  deploy_count INTEGER NOT NULL DEFAULT 0,
+  env_id TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  host TEXT NOT NULL DEFAULT '',
+  port INTEGER NOT NULL DEFAULT 0,
+  username TEXT NOT NULL DEFAULT '',
+  secret_enc TEXT NOT NULL DEFAULT '',
+  extra TEXT NOT NULL DEFAULT '',
+  auth_cred_id TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY(env_id) REFERENCES environments(id) ON DELETE CASCADE
+  updated_at INTEGER NOT NULL
 );
-INSERT INTO project_envs_new(id,project_id,env_id,name,ssh_cred_id,script,work_dir,last_status,last_deploy_at,deploy_count,created_at,updated_at)
-SELECT id,project_id,env_id,COALESCE(name,''),ssh_cred_id,script,work_dir,last_status,last_deploy_at,COALESCE(deploy_count,0),created_at,updated_at FROM project_envs;
-DROP TABLE project_envs;
-ALTER TABLE project_envs_new RENAME TO project_envs;
-CREATE INDEX IF NOT EXISTS idx_pe_project ON project_envs(project_id);
+CREATE INDEX IF NOT EXISTS idx_cred_env ON credentials(env_id);
+CREATE INDEX IF NOT EXISTS idx_cred_auth ON credentials(auth_cred_id);
 `)
-	if err != nil {
-		return err
-	}
-	return tx.Commit()
+	return err
 }
 
 func nowUnix() int64 { return time.Now().Unix() }

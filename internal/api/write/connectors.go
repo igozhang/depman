@@ -24,13 +24,17 @@ func (h *Handler) credForWrite(c *gin.Context, credID, wantType string) (model.C
 		respond.BadRequest(c, "credId required")
 		return model.Credential{}, "", false
 	}
-	cred, secret, err := h.Store.PlainSecret(credID)
+	cred, secret, err := h.Store.ResolveAuth(credID)
 	if err == store.ErrNotFound {
 		respond.NotFound(c, "凭据不存在")
 		return model.Credential{}, "", false
 	}
 	if err != nil {
-		respond.Internal(c, err.Error())
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+		} else {
+			respond.Internal(c, err.Error())
+		}
 		return model.Credential{}, "", false
 	}
 	if wantType != "" && cred.Type != wantType {

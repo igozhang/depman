@@ -111,8 +111,13 @@ func RegistryConfig(c model.Credential, secret string) registry.Config {
 func GitConfig(c model.Credential, secret string) git.Config {
 	ex := ParseExtra(c.Extra)
 	remote := strings.TrimSpace(c.Host)
-	if ex.Repo != "" && !strings.Contains(remote, "://") && !strings.HasPrefix(remote, "git@") {
-		remote = strings.TrimRight(baseURL(c.Host, c.Port, "https"), "/") + "/" + strings.TrimPrefix(ex.Repo, "/")
+	if remote != "" && !strings.Contains(remote, "://") && !strings.HasPrefix(remote, "git@") {
+		base := strings.TrimRight(baseURL(c.Host, c.Port, "https"), "/")
+		if ex.Repo != "" {
+			remote = base + "/" + strings.TrimPrefix(ex.Repo, "/")
+		} else {
+			remote = base
+		}
 	}
 	sshURL := strings.HasPrefix(remote, "git@") || strings.HasPrefix(strings.ToLower(remote), "ssh://")
 	httpURL := strings.HasPrefix(strings.ToLower(remote), "http://") || strings.HasPrefix(strings.ToLower(remote), "https://")

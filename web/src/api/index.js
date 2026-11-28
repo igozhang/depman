@@ -21,6 +21,9 @@ export const readApi = {
   credentials(envId, reveal = false) {
     return http.get('/read/credentials', { params: { envId: envId || undefined, reveal: reveal ? 1 : undefined } })
   },
+  hostResolves() {
+    return http.get('/read/host-resolves')
+  },
   jobs() {
     return http.get('/read/jobs')
   },
@@ -62,6 +65,15 @@ export const writeApi = {
   },
   deleteCredential(id) {
     return http.delete(`/write/credentials/${id}`)
+  },
+  createHostResolve(body) {
+    return http.post('/write/host-resolves', body)
+  },
+  updateHostResolve(id, body) {
+    return http.put(`/write/host-resolves/${id}`, body)
+  },
+  deleteHostResolve(id) {
+    return http.delete(`/write/host-resolves/${id}`)
   },
   upsertProjectEnv(body) {
     return http.post('/write/project-envs', body)

@@ -85,11 +85,11 @@ onMounted(load)
     <p v-if="err" class="ops-msg is-err">{{ err }}</p>
     <div v-if="loading && !items.length" class="empty">加载中…</div>
     <div v-else-if="!items.length" class="empty">暂无项目</div>
-    <div v-else class="capsule-grid">
+    <div v-else class="capsule-grid capsule-grid-home">
       <article
         v-for="it in items"
         :key="it.id"
-        class="project-capsule"
+        class="project-capsule project-capsule-home"
         @click="open(it.id)"
       >
         <h2 class="capsule-title">{{ it.name }}</h2>

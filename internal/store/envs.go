@@ -157,6 +157,7 @@ func (s *Store) UpdateEnvironment(id string, in model.EnvironmentInput) (model.E
 }
 
 func (s *Store) DeleteEnvironment(id string) error {
+	_ = s.DeleteCredentialsByEnv(id)
 	res, err := s.db.Exec(`DELETE FROM environments WHERE id=?`, id)
 	if err != nil {
 		return err

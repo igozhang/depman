@@ -33,7 +33,7 @@ async function test() {
   try {
     const r = await writeApi.testSSH(selected.value)
     ok.value = !!r?.ok
-    msg.value = r?.ok ? 'SSH 连通成功' : r?.error || '失败'
+    msg.value = r?.ok ? 'SSH 连通成功' : r?.message || r?.error || '失败'
   } catch (e) {
     ok.value = false
     msg.value = e?.message || '测试失败'

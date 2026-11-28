@@ -13,6 +13,7 @@ import (
 	"depman/internal/auth"
 	"depman/internal/cache"
 	"depman/internal/deploy"
+	"depman/internal/hostfile"
 	"depman/internal/model"
 	"depman/internal/store"
 )
@@ -204,7 +205,91 @@ func (h *Handler) DeleteCredential(c *gin.Context) {
 		respond.NotFound(c, "凭据不存在")
 		return
 	} else if err != nil {
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+			return
+		}
 		respond.Internal(c, err.Error())
+		return
+	}
+	respond.OK(c, gin.H{"ok": true})
+}
+
+func (h *Handler) syncHostResolves(c *gin.Context) bool {
+	if err := hostfile.SyncFromStore(h.Store); err != nil {
+		respond.Internal(c, "已保存，但写入 Pod hosts 失败："+err.Error())
+		return false
+	}
+	return true
+}
+
+func (h *Handler) CreateHostResolve(c *gin.Context) {
+	if !auth.IsSuper(middleware.Session(c)) {
+		respond.Forbidden(c, "需要项目超管权限")
+		return
+	}
+	var in model.HostResolveInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		respond.BadRequest(c, "bad json")
+		return
+	}
+	item, err := h.Store.CreateHostResolve(in)
+	if err != nil {
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+			return
+		}
+		respond.Internal(c, err.Error())
+		return
+	}
+	if !h.syncHostResolves(c) {
+		return
+	}
+	respond.OK(c, item)
+}
+
+func (h *Handler) UpdateHostResolve(c *gin.Context) {
+	if !auth.IsSuper(middleware.Session(c)) {
+		respond.Forbidden(c, "需要项目超管权限")
+		return
+	}
+	var in model.HostResolveInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		respond.BadRequest(c, "bad json")
+		return
+	}
+	item, err := h.Store.UpdateHostResolve(c.Param("id"), in)
+	if err == store.ErrNotFound {
+		respond.NotFound(c, "解析不存在")
+		return
+	}
+	if err != nil {
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+			return
+		}
+		respond.Internal(c, err.Error())
+		return
+	}
+	if !h.syncHostResolves(c) {
+		return
+	}
+	respond.OK(c, item)
+}
+
+func (h *Handler) DeleteHostResolve(c *gin.Context) {
+	if !auth.IsSuper(middleware.Session(c)) {
+		respond.Forbidden(c, "需要项目超管权限")
+		return
+	}
+	if err := h.Store.DeleteHostResolve(c.Param("id")); err == store.ErrNotFound {
+		respond.NotFound(c, "解析不存在")
+		return
+	} else if err != nil {
+		respond.Internal(c, err.Error())
+		return
+	}
+	if !h.syncHostResolves(c) {
 		return
 	}
 	respond.OK(c, gin.H{"ok": true})
@@ -306,12 +391,16 @@ func (h *Handler) pingCred(c *gin.Context, requireType string) {
 		respond.BadRequest(c, "credId required")
 		return
 	}
-	cred, secret, err := h.Store.PlainSecret(body.CredID)
+	cred, secret, err := h.Store.ResolveAuth(body.CredID)
 	if err == store.ErrNotFound {
 		respond.NotFound(c, "凭据不存在")
 		return
 	}
 	if err != nil {
+		if store.IsValidation(err) {
+			respond.BadRequest(c, err.Error())
+			return
+		}
 		respond.Internal(c, err.Error())
 		return
 	}
@@ -332,15 +421,6 @@ func (h *Handler) pingCred(c *gin.Context, requireType string) {
 	res := appconn.PingCredential(ctx, cred, secret)
 	if !res.OK && ctx.Err() != nil {
 		res.Message = "超时（5s）"
-	}
-	if requireType == "ssh" {
-		// keep legacy shape for existing UI
-		if !res.OK {
-			respond.OK(c, gin.H{"ok": false, "error": res.Message})
-			return
-		}
-		respond.OK(c, gin.H{"ok": true})
-		return
 	}
 	respond.OK(c, res)
 }

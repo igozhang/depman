@@ -129,6 +129,18 @@ func (h *Handler) ListCredentials(c *gin.Context) {
 	respond.OK(c, gin.H{"items": items})
 }
 
+func (h *Handler) ListHostResolves(c *gin.Context) {
+	items, err := h.Store.ListHostResolves()
+	if err != nil {
+		respond.Internal(c, err.Error())
+		return
+	}
+	if items == nil {
+		items = []model.HostResolve{}
+	}
+	respond.OK(c, gin.H{"items": items})
+}
+
 func (h *Handler) ListProjectEnvJobs(c *gin.Context) {
 	pe, err := h.Store.GetProjectEnv(c.Param("id"))
 	if err == store.ErrNotFound {

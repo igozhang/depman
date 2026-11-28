@@ -51,30 +51,50 @@ type Tag struct {
 }
 
 // Credential types: git | harbor | ssh | api
+// EnvID empty = shared pool; non-empty = belongs to that environment.
+// AuthCredID optionally references another credential (usually shared) for username/secret.
 type Credential struct {
+	ID         string    `json:"id"`
+	EnvID      string    `json:"envId"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	Host       string    `json:"host"`
+	Port       int       `json:"port,omitempty"`
+	Username   string    `json:"username"`
+	SecretSet  bool      `json:"secretSet"`
+	Secret     string    `json:"secret,omitempty"` // only when reveal=1 and authorized
+	Extra      string    `json:"extra,omitempty"`  // JSON extras (repo path, etc.)
+	AuthCredID string    `json:"authCredId,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+}
+
+type CredentialInput struct {
+	EnvID      string `json:"envId"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Host       string `json:"host"`
+	Port       int    `json:"port"`
+	Username   string `json:"username"`
+	Secret     string `json:"secret"`
+	Extra      string `json:"extra"`
+	AuthCredID string `json:"authCredId"`
+}
+
+// HostResolve is a hostname → IP mapping applied into every depman Pod (/etc/hosts).
+type HostResolve struct {
 	ID        string    `json:"id"`
-	EnvID     string    `json:"envId"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	Host      string    `json:"host"`
-	Port      int       `json:"port,omitempty"`
-	Username  string    `json:"username"`
-	SecretSet bool      `json:"secretSet"`
-	Secret    string    `json:"secret,omitempty"` // only when reveal=1 and authorized
-	Extra     string    `json:"extra,omitempty"`  // JSON extras (repo path, etc.)
+	Hostname  string    `json:"hostname"`
+	IP        string    `json:"ip"`
+	Note      string    `json:"note,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-type CredentialInput struct {
-	EnvID    string `json:"envId"`
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Secret   string `json:"secret"`
-	Extra    string `json:"extra"`
+type HostResolveInput struct {
+	Hostname string `json:"hostname"`
+	IP       string `json:"ip"`
+	Note     string `json:"note"`
 }
 
 type ProjectEnv struct {

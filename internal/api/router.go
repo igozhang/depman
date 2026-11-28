@@ -101,6 +101,7 @@ func NewRouter(d Deps) *gin.Engine {
 		readG.GET("/environments", rh.ListEnvironments)
 		readG.GET("/tags", rh.ListTags)
 		readG.GET("/credentials", rh.ListCredentials)
+		readG.GET("/host-resolves", rh.ListHostResolves)
 		readG.GET("/project-envs/:id/jobs", rh.ListProjectEnvJobs)
 		readG.GET("/jobs", rh.ListJobs)
 		readG.GET("/jobs/:id", rh.GetJob)
@@ -120,6 +121,10 @@ func NewRouter(d Deps) *gin.Engine {
 		writeG.POST("/credentials", wh.CreateCredential)
 		writeG.PUT("/credentials/:id", wh.UpdateCredential)
 		writeG.DELETE("/credentials/:id", wh.DeleteCredential)
+
+		writeG.POST("/host-resolves", wh.CreateHostResolve)
+		writeG.PUT("/host-resolves/:id", wh.UpdateHostResolve)
+		writeG.DELETE("/host-resolves/:id", wh.DeleteHostResolve)
 
 		writeG.POST("/project-envs", wh.UpsertProjectEnv)
 		writeG.DELETE("/project-envs/:id", wh.DeleteProjectEnv)

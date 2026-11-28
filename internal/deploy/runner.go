@@ -35,7 +35,7 @@ func (r *Runner) run(jobID string) {
 		_ = r.fail(jobID, pe.ID, "", "未配置 SSH 凭据")
 		return
 	}
-	cred, secret, err := r.Store.PlainSecret(pe.SSHCredID)
+	cred, secret, err := r.Store.ResolveAuth(pe.SSHCredID)
 	if err != nil {
 		_ = r.fail(jobID, pe.ID, "", "读取 SSH 凭据失败: "+err.Error())
 		return

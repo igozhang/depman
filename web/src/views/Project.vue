@@ -28,12 +28,12 @@ const historyDragging = ref(false)
 
 const id = computed(() => String(route.params.id || ''))
 
-/** 绑定抽屉只展示所选环境的 SSH 凭据，避免选错环境时报后端校验错误 */
+/** 绑定抽屉：公共 SSH + 所选环境 SSH */
 const bindSshCreds = computed(() => {
   const envId = bindForm.value.envId
   const list = sshCreds.value
   if (!envId) return list
-  return list.filter((c) => c.envId === envId)
+  return list.filter((c) => !c.envId || c.envId === envId)
 })
 
 function historyBtnClass(status) {
@@ -379,7 +379,9 @@ onUnmounted(() => window.clearInterval(pollTimer))
           <label>SSH 凭据</label>
           <select v-model="bindForm.sshCredId">
             <option value="">选择凭据</option>
-            <option v-for="c in bindSshCreds" :key="c.id" :value="c.id">{{ c.name }} · {{ c.host }}</option>
+            <option v-for="c in bindSshCreds" :key="c.id" :value="c.id">
+              {{ c.envId ? '' : '[公共] ' }}{{ c.name }} · {{ c.host }}
+            </option>
           </select>
         </div>
         <div class="form-row">

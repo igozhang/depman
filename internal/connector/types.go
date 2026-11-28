@@ -9,10 +9,9 @@ import (
 )
 
 var (
-	ErrNotImplemented = errors.New("connector: not implemented")
-	ErrInvalidConfig  = errors.New("connector: invalid config")
-	ErrAuth           = errors.New("connector: auth failed")
-	ErrUnavailable    = errors.New("connector: unavailable")
+	ErrInvalidConfig = errors.New("connector: invalid config")
+	ErrAuth          = errors.New("connector: auth failed")
+	ErrUnavailable   = errors.New("connector: unavailable")
 )
 
 // AuthMethod describes how Secret is interpreted.
