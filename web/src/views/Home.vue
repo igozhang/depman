@@ -44,11 +44,16 @@ async function create() {
   }
 }
 
+function hasStatus(s) {
+  return s === 'ok' || s === 'warn' || s === 'failed' || s === 'running' || s === 'pending'
+}
+
 function statusClass(s) {
   if (s === 'ok') return 'ok'
   if (s === 'warn') return 'warn'
   if (s === 'failed') return 'failed'
   if (s === 'running') return 'running'
+  if (s === 'pending') return 'pending'
   return ''
 }
 
@@ -88,12 +93,19 @@ onMounted(load)
         @click="open(it.id)"
       >
         <h2 class="capsule-title">{{ it.name }}</h2>
-        <p class="muted" style="margin:0;min-height:1.3em">{{ it.description || '（无描述）' }}</p>
+        <p class="capsule-desc">{{ it.description || '（无描述）' }}</p>
         <div class="capsule-meta">
           <span>{{ it.envCount || 0 }} 发布任务</span>
           <span v-if="it.lastEnvName">最近：{{ it.lastEnvName }}</span>
-          <span v-if="it.lastStatus" class="status-pill" :class="statusClass(it.lastStatus)">{{ statusLabel(it.lastStatus) }}</span>
-          <span v-if="it.lastDeployAt">{{ new Date(it.lastDeployAt).toLocaleString('zh-CN', { hour12: false }) }}</span>
+        </div>
+        <div class="capsule-foot">
+          <time v-if="it.lastDeployAt" class="capsule-time">{{ new Date(it.lastDeployAt).toLocaleString('zh-CN', { hour12: false }) }}</time>
+          <span v-else class="capsule-time capsule-time-empty">尚未发布</span>
+          <span
+            v-if="hasStatus(it.lastStatus)"
+            class="status-pill"
+            :class="statusClass(it.lastStatus)"
+          >{{ statusLabel(it.lastStatus) }}</span>
         </div>
       </article>
     </div>

@@ -373,12 +373,13 @@ input, select, textarea {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 0.95rem 1rem;
+  padding: 0.9rem 1rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.4rem;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 8.5rem;
 }
 .project-capsule:hover {
   border-color: var(--accent);
@@ -392,6 +393,7 @@ input, select, textarea {
   cursor: default;
   height: 100%;
   min-height: 10.5rem;
+  padding-bottom: 0.85rem;
 }
 .project-capsule-bind .capsule-title {
   flex-shrink: 0;
@@ -401,45 +403,106 @@ input, select, textarea {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 .project-capsule-bind .capsule-script {
   margin: 0;
+  font-family: var(--mono);
   font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
   white-space: pre-wrap;
+  word-break: break-all;
   max-height: 4.5em;
   overflow: hidden;
 }
-.project-capsule-bind .capsule-actions {
-  flex-shrink: 0;
-  margin-top: auto;
-  align-items: center;
-}
 .capsule-title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.98rem;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.capsule-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+  min-height: 1.3em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 .capsule-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 0.85rem;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
   font-size: 12px;
+  line-height: 1.4;
   color: var(--muted);
+}
+.capsule-env {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.capsule-time {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.capsule-time-empty {
+  opacity: 0.65;
+}
+/* 底栏：左侧信息/按钮，右侧固定状态 */
+.capsule-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem 0.65rem;
+  margin-top: auto;
+  padding-top: 0.4rem;
+  min-height: 1.65em;
+}
+.capsule-foot .status-pill {
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+.capsule-btns {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.project-capsule-bind .capsule-actions {
+  flex-shrink: 0;
 }
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  justify-content: center;
+  padding: 1px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
   border: 1px solid var(--line);
   background: var(--surface);
+  white-space: nowrap;
 }
-.status-pill.ok { color: var(--ok); border-color: #8fbf9a; }
-.status-pill.warn { color: var(--warn); border-color: #e0c56e; }
-.status-pill.failed { color: var(--danger); border-color: #e0b4b0; }
-.status-pill.running { color: var(--warn); }
+.status-pill.ok { color: var(--ok); border-color: #8fbf9a; background: #d5e8d8; }
+.status-pill.warn { color: var(--warn); border-color: #e0c56e; background: #f3ebcc; }
+.status-pill.failed { color: var(--danger); border-color: #e0b4b0; background: #f0ddd9; }
+.status-pill.running,
+.status-pill.pending { color: var(--warn); border-color: #e0c56e; }
 
 .tag-list {
   display: inline-flex;

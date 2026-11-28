@@ -43,6 +43,19 @@ function historyBtnClass(status) {
   return ''
 }
 
+function hasStatus(status) {
+  return status === 'ok' || status === 'warn' || status === 'failed' || status === 'running' || status === 'pending'
+}
+
+function statusClass(status) {
+  if (status === 'ok') return 'ok'
+  if (status === 'warn') return 'warn'
+  if (status === 'failed') return 'failed'
+  if (status === 'running') return 'running'
+  if (status === 'pending') return 'pending'
+  return ''
+}
+
 function statusLabel(status) {
   if (status === 'ok') return '成功'
   if (status === 'warn') return '成功(有报错)'
@@ -270,25 +283,31 @@ onUnmounted(() => window.clearInterval(pollTimer))
         <h2 class="capsule-title">{{ taskTitle(pe) }}</h2>
         <div class="capsule-body">
           <div class="capsule-meta">
-            <span>{{ envName(pe.envId) }}</span>
-            <span v-if="pe.lastStatus" class="status-pill" :class="pe.lastStatus">{{ statusLabel(pe.lastStatus) }}</span>
-            <span v-if="pe.lastDeployAt">{{ new Date(pe.lastDeployAt).toLocaleString('zh-CN', { hour12: false }) }}</span>
-            <span v-if="pe.workDir">dir: {{ pe.workDir }}</span>
+            <span v-if="envName(pe.envId) !== taskTitle(pe)" class="capsule-env">{{ envName(pe.envId) }}</span>
+            <time v-if="pe.lastDeployAt" class="capsule-time">{{ new Date(pe.lastDeployAt).toLocaleString('zh-CN', { hour12: false }) }}</time>
+            <span v-else class="capsule-time capsule-time-empty">尚未发布</span>
           </div>
-          <pre class="capsule-script muted">{{ pe.script || '（无脚本）' }}</pre>
+          <pre class="capsule-script">{{ pe.workDir ? `dir: ${pe.workDir}\n` : '' }}{{ pe.script || '（无脚本）' }}</pre>
         </div>
-        <div class="actions capsule-actions">
-          <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="deploy(pe)">发布</button>
-          <button v-if="isSuper" type="button" class="btn btn-sm" :disabled="busy" @click="openBind(pe)">编辑</button>
-          <button
-            type="button"
-            class="btn btn-sm"
-            :class="historyBtnClass(pe.lastStatus)"
-            :disabled="historyBusy"
-            :title="pe.lastStatus ? `上次：${statusLabel(pe.lastStatus)}` : '暂无发布记录'"
-            @click="openHistory(pe)"
-          >历史</button>
-          <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" :disabled="busy" @click="removeBind(pe)">删</button>
+        <div class="capsule-foot capsule-actions">
+          <div class="capsule-btns">
+            <button type="button" class="btn btn-sm btn-primary" :disabled="busy" @click="deploy(pe)">发布</button>
+            <button v-if="isSuper" type="button" class="btn btn-sm" :disabled="busy" @click="openBind(pe)">编辑</button>
+            <button
+              type="button"
+              class="btn btn-sm"
+              :class="historyBtnClass(pe.lastStatus)"
+              :disabled="historyBusy"
+              :title="pe.lastStatus ? `上次：${statusLabel(pe.lastStatus)}` : '暂无发布记录'"
+              @click="openHistory(pe)"
+            >历史</button>
+            <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" :disabled="busy" @click="removeBind(pe)">删</button>
+          </div>
+          <span
+            v-if="hasStatus(pe.lastStatus)"
+            class="status-pill"
+            :class="statusClass(pe.lastStatus)"
+          >{{ statusLabel(pe.lastStatus) }}</span>
         </div>
       </article>
     </div>
