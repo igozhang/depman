@@ -417,8 +417,6 @@ onMounted(load)
         <button v-if="isSuper" type="button" class="btn" @click="toggleReveal">
           {{ reveal ? '隐藏密钥' : '显示密钥' }}
         </button>
-        <button v-if="isSuper" type="button" class="btn" @click="openCreateSharedCred">添加公共凭据</button>
-        <button v-if="isSuper" type="button" class="btn" @click="openCreateResolve">添加解析</button>
         <button v-if="isSuper" type="button" class="btn btn-primary" @click="openCreateEnv">新建环境</button>
       </div>
     </div>
@@ -432,11 +430,14 @@ onMounted(load)
 
     <p v-if="err" class="ops-msg is-err">{{ err }}</p>
 
-    <div v-if="resolves.length" class="panel">
+    <div class="panel">
       <div class="toolbar">
         <div>
           <strong>主机解析</strong>
           <p class="muted" style="margin:0.25rem 0 0">写入本服务所有 Pod 的 hosts，供凭据连通与发布使用</p>
+        </div>
+        <div v-if="isSuper" class="actions">
+          <button type="button" class="btn btn-sm" @click="openCreateResolve">添加解析</button>
         </div>
       </div>
       <table class="data">
@@ -458,6 +459,9 @@ onMounted(load)
               <button v-if="isSuper" type="button" class="btn btn-sm btn-danger" @click="removeResolve(r.id)">删</button>
             </td>
           </tr>
+          <tr v-if="!resolves.length">
+            <td colspan="4" class="muted">暂无主机解析</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -467,6 +471,9 @@ onMounted(load)
         <div>
           <strong>公共凭据</strong>
           <p class="muted" style="margin:0.25rem 0 0">全局认证池（Git / Harbor / Rancher / SSH），可被各环境引用</p>
+        </div>
+        <div v-if="isSuper" class="actions">
+          <button type="button" class="btn btn-sm" @click="openCreateSharedCred">添加公共凭据</button>
         </div>
       </div>
       <table class="data">
@@ -694,7 +701,7 @@ onMounted(load)
               :placeholder="
                 credForm.type === 'git'
                   ? credScope === 'shared'
-                    ? 'gitlab.example.com'
+                    ? 'gitlab.example.com 或 http://… / https://…'
                     : 'https://gitlab.example.com/group/repo.git'
                   : ''
               "
@@ -706,7 +713,7 @@ onMounted(load)
               v-model="credForm.port"
               type="number"
               min="0"
-              :placeholder="credForm.type === 'git' ? '0 = protocol default' : ''"
+              :placeholder="credForm.type === 'git' ? '0=https/443；HTTP 填 80' : ''"
             />
           </div>
         </div>
@@ -719,7 +726,7 @@ onMounted(load)
             </option>
           </select>
           <p v-if="credForm.type === 'git'" class="muted" style="margin:0.35rem 0 0;font-size:0.85rem">
-            主机填完整仓库 URL；认证选公共 Git 账号即可。
+            主机填完整仓库 URL（HTTP 服务用 http://…，勿写 https 除非 443 可达）；认证选公共 Git 账号即可。
           </p>
         </div>
         <template v-if="!hideLocalSecret">

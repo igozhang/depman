@@ -58,6 +58,41 @@ func TestGitConfigRepoJoin(t *testing.T) {
 	if cfg.Branch != "main" {
 		t.Fatalf("branch=%s", cfg.Branch)
 	}
+	if !cfg.Endpoint.Insecure {
+		t.Fatal("expected default Insecure for internal HTTPS")
+	}
+}
+
+func TestGitConfigHTTPPort(t *testing.T) {
+	cfg := GitConfig(model.Credential{Host: "gitlab.example.com", Port: 80}, "pat")
+	if cfg.Endpoint.BaseURL != "http://gitlab.example.com" {
+		t.Fatalf("remote=%s", cfg.Endpoint.BaseURL)
+	}
+}
+
+func TestGitConfigExplicitHTTPS(t *testing.T) {
+	cfg := GitConfig(model.Credential{Host: "https://gitlab.example.com"}, "pat")
+	if cfg.Endpoint.BaseURL != "https://gitlab.example.com" {
+		t.Fatalf("remote=%s", cfg.Endpoint.BaseURL)
+	}
+	secure := false
+	cfg2 := GitConfig(model.Credential{
+		Host:  "https://gitlab.example.com",
+		Extra: `{"insecure":false}`,
+	}, "pat")
+	if cfg2.Endpoint.Insecure != secure {
+		t.Fatalf("Insecure=%v want false", cfg2.Endpoint.Insecure)
+	}
+}
+
+func TestGitConfigSchemeRepoJoin(t *testing.T) {
+	cfg := GitConfig(model.Credential{
+		Host:  "http://gitlab.example.com",
+		Extra: `{"repo":"group/app.git"}`,
+	}, "pat")
+	if cfg.Endpoint.BaseURL != "http://gitlab.example.com/group/app.git" {
+		t.Fatalf("remote=%s", cfg.Endpoint.BaseURL)
+	}
 }
 
 func TestRancherRejectsOtherProvider(t *testing.T) {

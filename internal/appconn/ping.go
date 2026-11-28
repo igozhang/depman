@@ -35,7 +35,7 @@ func PingCredential(ctx context.Context, c model.Credential, secret string) Ping
 	case "git":
 		cfg := GitConfig(c, secret)
 		if gitHostOnly(cfg.Endpoint.BaseURL) {
-			err := pingTCPHost(ctx, cfg.Endpoint.BaseURL, c.Port)
+			err := pingGitHostOnly(ctx, cfg, c.Port)
 			return wrapPing(connector.KindGit, err)
 		}
 		err := git.New(cfg).Ping(ctx)
@@ -50,6 +50,60 @@ func PingCredential(ctx context.Context, c model.Credential, secret string) Ping
 	default:
 		return PingResult{OK: false, Message: fmt.Sprintf("unsupported credential type %q", c.Type)}
 	}
+}
+
+// pingGitHostOnly probes a shared-pool git entry that has no repo path.
+// SSH-looking remotes dial :22; http(s) remotes follow the URL scheme (not a stale credential port).
+func pingGitHostOnly(ctx context.Context, cfg git.Config, credPort int) error {
+	remote := strings.TrimSpace(cfg.Endpoint.BaseURL)
+	sshURL := strings.HasPrefix(remote, "git@") || strings.HasPrefix(strings.ToLower(remote), "ssh://")
+	if sshURL || cfg.Auth.Method == connector.AuthSSHKey {
+		host, port, err := resolveSSHDialTarget(remote, credPort)
+		if err != nil {
+			return err
+		}
+		return pingTCPAddr(ctx, host, port)
+	}
+	return pingTCPHost(ctx, remote, credPort)
+}
+
+func resolveSSHDialTarget(remote string, port int) (string, int, error) {
+	host := strings.TrimSpace(remote)
+	switch {
+	case strings.HasPrefix(strings.ToLower(host), "ssh://"):
+		u, err := url.Parse(host)
+		if err != nil {
+			return "", 0, err
+		}
+		host = u.Host
+		if h, p, err := net.SplitHostPort(host); err == nil {
+			host = h
+			if port <= 0 {
+				if pi, e := strconv.Atoi(p); e == nil {
+					port = pi
+				}
+			}
+		} else {
+			host = u.Hostname()
+		}
+	case strings.HasPrefix(host, "git@"):
+		host = strings.TrimPrefix(host, "git@")
+		if i := strings.IndexByte(host, ':'); i >= 0 {
+			host = host[:i]
+		}
+	default:
+		if strings.Contains(host, "://") {
+			u, err := url.Parse(host)
+			if err != nil {
+				return "", 0, err
+			}
+			host = u.Hostname()
+		}
+	}
+	if port <= 0 {
+		port = 22
+	}
+	return host, port, nil
 }
 
 func wrapPing(kind connector.Kind, err error) PingResult {
@@ -81,25 +135,47 @@ func gitHostOnly(remote string) bool {
 }
 
 func pingTCPHost(ctx context.Context, remote string, port int) error {
+	host, p, err := resolveHTTPDialTarget(remote, port)
+	if err != nil {
+		return err
+	}
+	return pingTCPAddr(ctx, host, p)
+}
+
+// resolveHTTPDialTarget picks host:port for http(s) probes.
+// If remote already includes a scheme and no explicit port, credential port is ignored
+// (same rule as baseURL).
+func resolveHTTPDialTarget(remote string, port int) (string, int, error) {
 	host := strings.TrimSpace(remote)
 	scheme := "https"
-	if strings.Contains(host, "://") {
+	explicitPort := ""
+	hasScheme := strings.Contains(host, "://")
+	if hasScheme {
 		u, err := url.Parse(host)
 		if err != nil {
-			return err
+			return "", 0, err
 		}
 		if u.Scheme != "" {
 			scheme = u.Scheme
 		}
 		host = u.Host
+		explicitPort = u.Port()
 	}
 	if h, p, err := net.SplitHostPort(host); err == nil {
 		host = h
-		if port <= 0 {
-			if pi, e := strconv.Atoi(p); e == nil {
-				port = pi
-			}
+		if explicitPort == "" {
+			explicitPort = p
 		}
+	}
+	switch {
+	case explicitPort != "":
+		pi, err := strconv.Atoi(explicitPort)
+		if err != nil {
+			return "", 0, err
+		}
+		port = pi
+	case hasScheme:
+		port = 0
 	}
 	if port <= 0 {
 		if scheme == "http" {
@@ -108,6 +184,10 @@ func pingTCPHost(ctx context.Context, remote string, port int) error {
 			port = 443
 		}
 	}
+	return host, port, nil
+}
+
+func pingTCPAddr(ctx context.Context, host string, port int) error {
 	d := net.Dialer{}
 	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {

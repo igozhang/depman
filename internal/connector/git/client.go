@@ -92,7 +92,10 @@ func (c *Client) Ping(ctx context.Context) error {
 		Name: "origin",
 		URLs: []string{c.Cfg.Endpoint.BaseURL},
 	})
-	_, err = rem.ListContext(ctx, &gogit.ListOptions{Auth: auth})
+	_, err = rem.ListContext(ctx, &gogit.ListOptions{
+		Auth:            auth,
+		InsecureSkipTLS: c.Cfg.Endpoint.Insecure,
+	})
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "authentication") ||
 			strings.Contains(err.Error(), "401") ||
@@ -133,11 +136,12 @@ func (c *Client) EnsureWorktree(ctx context.Context, workDir, ref string) error 
 		}
 		// Fresh clone into workDir.
 		opts := &gogit.CloneOptions{
-			URL:           c.Cfg.Endpoint.BaseURL,
-			Auth:          auth,
-			SingleBranch:  ref != "",
-			ReferenceName: refName(ref),
-			Depth:         1,
+			URL:             c.Cfg.Endpoint.BaseURL,
+			Auth:            auth,
+			SingleBranch:    ref != "",
+			ReferenceName:   refName(ref),
+			Depth:           1,
+			InsecureSkipTLS: c.Cfg.Endpoint.Insecure,
 		}
 		_, err = gogit.PlainCloneContext(ctx, workDir, false, opts)
 		if err != nil {
@@ -160,10 +164,11 @@ func (c *Client) EnsureWorktree(ctx context.Context, workDir, ref string) error 
 
 	// Existing repo: fetch + checkout.
 	err = repo.FetchContext(ctx, &gogit.FetchOptions{
-		RemoteName: "origin",
-		Auth:       auth,
-		Force:      true,
-		Tags:       gogit.AllTags,
+		RemoteName:      "origin",
+		Auth:            auth,
+		Force:           true,
+		Tags:            gogit.AllTags,
+		InsecureSkipTLS: c.Cfg.Endpoint.Insecure,
 	})
 	if err != nil && err != gogit.NoErrAlreadyUpToDate {
 		return fmt.Errorf("%w: fetch: %v", connector.ErrUnavailable, err)

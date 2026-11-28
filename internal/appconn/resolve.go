@@ -26,7 +26,7 @@ type Extra struct {
 	Branch    string `json:"branch,omitempty"`
 	Auth      string `json:"auth,omitempty"` // https | ssh
 	Project   string `json:"project,omitempty"`
-	Insecure  *bool  `json:"insecure,omitempty"` // TLS skip verify; default true for registry/rancher
+	Insecure  *bool  `json:"insecure,omitempty"` // TLS skip verify; default true for registry/rancher/git
 }
 
 func ParseExtra(raw string) Extra {
@@ -111,7 +111,17 @@ func RegistryConfig(c model.Credential, secret string) registry.Config {
 func GitConfig(c model.Credential, secret string) git.Config {
 	ex := ParseExtra(c.Extra)
 	remote := strings.TrimSpace(c.Host)
-	if remote != "" && !strings.Contains(remote, "://") && !strings.HasPrefix(remote, "git@") {
+	switch {
+	case remote == "" || strings.HasPrefix(remote, "git@"):
+		// leave as-is (ssh scp-like or empty)
+	case strings.Contains(remote, "://"):
+		// Scheme already set (http/https/ssh). Still allow Extra.Repo when path is empty.
+		if ex.Repo != "" && gitHostOnly(remote) {
+			remote = strings.TrimRight(remote, "/") + "/" + strings.TrimPrefix(ex.Repo, "/")
+		} else {
+			remote = strings.TrimRight(remote, "/")
+		}
+	default:
 		base := strings.TrimRight(baseURL(c.Host, c.Port, "https"), "/")
 		if ex.Repo != "" {
 			remote = base + "/" + strings.TrimPrefix(ex.Repo, "/")
@@ -133,7 +143,11 @@ func GitConfig(c model.Credential, secret string) git.Config {
 		method = connector.AuthSSHKey
 	}
 	return git.Config{
-		Endpoint: connector.Endpoint{BaseURL: remote, Timeout: 60 * time.Second},
+		Endpoint: connector.Endpoint{
+			BaseURL:  remote,
+			Timeout:  60 * time.Second,
+			Insecure: ex.tlsInsecure(true), // internal GitLab often uses self-signed HTTPS
+		},
 		Auth: connector.Auth{
 			Username: c.Username,
 			Secret:   secret,
